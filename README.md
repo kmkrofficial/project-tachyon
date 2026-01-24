@@ -1,19 +1,40 @@
-# README
+# Tachyon Download Manager ⚡
 
-## About
+High-performance, persistent download manager built with Go (Wails) and React.
 
-This is the official Wails React-TS template.
+## Features
+- **🚀 32-Thread Engine**: Maximizes bandwidth using parallel connections.
+- **🧠 Persistent "Brain"**: Remembers downloads and progress across restarts (BadgerDB).
+- **🔌 Browser Integration**: Chrome Extension intercepts downloads automatically.
+- **🎨 Modern UI**: Clean React dashboard with Dark Mode.
+- **📁 Smart Management**: Open destination folders instantly.
 
-You can configure the project by editing `wails.json`. More information about the project settings can be found
-here: https://wails.io/docs/reference/project-config
+## Installation
+1.  Download `Tachyon-Installer.exe` from Releases.
+2.  Run the installer.
+3.  Launch "Tachyon Download Manager".
 
-## Live Development
+## Browser Extension
+1.  Go to `chrome://extensions` -> Enable Developer Mode.
+2.  Click "Load Unpacked" -> Select the `extension/` folder (or unzip `tachyon_extension.zip`).
+3.  Right-click any link -> "Download with Tachyon".
 
-To run in live development mode, run `wails dev` in the project directory. This will run a Vite development
-server that will provide very fast hot reload of your frontend changes. If you want to develop in a browser
-and have access to your Go methods, there is also a dev server that runs on http://localhost:34115. Connect
-to this in your browser, and you can call your Go code from devtools.
+## Development
+```bash
+# Install Wails
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
-## Building
+# Run Dev Mode
+wails dev
 
-To build a redistributable, production mode package, use `wails build`.
+# Build for Production
+wails build -nsis
+```
+
+## Architecture
+- **Frontend**: React + Vite + Tailwind + Lucide
+- **Backend**: Go + Grab (Engine) + BadgerDB (Storage) + API Server
+- **Protocol**: HTTP/1.1 (Standard) + HTTP/2 (Supported by Go)
+
+---
+© 2026 Keerthi Raajan K M

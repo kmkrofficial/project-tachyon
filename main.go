@@ -37,6 +37,10 @@ func main() {
 	// Initialize Engine with Storage
 	engine := core.NewEngine(log, store)
 
+	// Initialize API Server
+	apiServer := core.NewAPIServer(log, engine)
+	apiServer.Start(45000)
+
 	// Create an instance of the app structure, injecting dependencies
 	app := NewApp(log, engine)
 

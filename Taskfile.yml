@@ -34,6 +34,16 @@ tasks:
       - go test ./...
 
 
+  build-extension:
+    desc: Zips the chrome extension
+    cmds:
+      - powershell Compress-Archive -Path extension/* -DestinationPath build/tachyon_extension.zip -Force
+
+  release:
+    desc: Builds production installer
+    cmds:
+      - wails build -platform windows/amd64 -clean -upx -nsis -production -ldflags "-s -w"
+
   checkpoint:
     desc: Auto-saves changes to Git
     cmds:
