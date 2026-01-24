@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"project-tachyon/internal/core"
+	"project-tachyon/internal/storage"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -80,4 +81,27 @@ func (a *App) AddDownload(url string) string {
 	}
 
 	return id
+}
+
+// GetTasks returns all saved tasks from the database
+func (a *App) GetTasks() []storage.Task {
+	tasks, err := a.engine.GetHistory()
+	if err != nil {
+		a.logger.Error("Failed to get tasks", "error", err)
+		return []storage.Task{}
+	}
+	return tasks
+}
+
+// OpenFolder opens the folder containing the file
+func (a *App) OpenFolder(path string) {
+	if path == "" {
+		return
+	}
+	dir := filepath.Dir(path)
+	// Wails doesn't have a cross-platform "BrowserOpenFolder" yet, but we can try BrowserOpenURL with file://
+	// Or runtime.BrowserOpenURL(dir) might work on some OSs.
+	// Better to use Go's exec.Command("explorer", dir) on Windows.
+	// For now, let's use Wails BrowserOpenURL which opens default handler.
+	runtime.BrowserOpenURL(a.ctx, dir)
 }

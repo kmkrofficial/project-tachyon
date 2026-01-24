@@ -4,11 +4,14 @@ import { describe, it, expect, vi } from "vitest";
 
 const mockItem = {
     id: "test-id-123",
+    url: "http://example.com/file",
     filename: "test-video.mp4",
     progress: 45.5,
+    size: 1024,
     speed_MBs: 12.5,
     eta: "2m 30s",
     status: "downloading" as const,
+    created_at: "2023-01-01T00:00:00Z"
 };
 
 describe("DownloadItem", () => {

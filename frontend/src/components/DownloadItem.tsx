@@ -4,9 +4,10 @@ import { DownloadItem as DownloadItemType } from "../types";
 
 type DownloadItemProps = {
     item: DownloadItemType;
+    onOpenFolder?: (path: string) => void;
 };
 
-export function DownloadItem({ item }: DownloadItemProps) {
+export function DownloadItem({ item, onOpenFolder }: DownloadItemProps) {
     const getIcon = (filename: string) => {
         if (filename.endsWith(".mp4") || filename.endsWith(".mkv")) return <FileVideo className="text-purple-400" size={32} />;
         if (filename.endsWith(".zip") || filename.endsWith(".rar")) return <FileArchive className="text-yellow-400" size={32} />;
@@ -26,7 +27,7 @@ export function DownloadItem({ item }: DownloadItemProps) {
                         {item.filename}
                     </h3>
                     <span className="text-xs text-gray-400 font-mono">
-                        {item.status === "downloading" && `${item.speed_MBs.toFixed(1)} MB/s • ETA: ${item.eta}`}
+                        {item.status === "downloading" && `${item.speed_MBs ? item.speed_MBs.toFixed(1) : "0.0"} MB/s • ETA: ${item.eta || "--"}`}
                         {item.status === "completed" && "Completed"}
                         {item.status === "error" && "Error"}
                     </span>
@@ -41,14 +42,17 @@ export function DownloadItem({ item }: DownloadItemProps) {
             </div>
 
             <div className="flex gap-2">
-                {/* Placeholder buttons for Phase 4 */}
-                <button className="p-2 hover:bg-gray-700 rounded-full text-gray-400 hover:text-white transition-colors">
+                <button className="p-2 hover:bg-gray-700 rounded-full text-gray-400 hover:text-white transition-colors" title="Pause/Resume">
                     {item.status === "paused" ? <Play size={18} /> : <Pause size={18} />}
                 </button>
-                <button className="p-2 hover:bg-gray-700 rounded-full text-gray-400 hover:text-white transition-colors">
+                <button className="p-2 hover:bg-gray-700 rounded-full text-gray-400 hover:text-white transition-colors" title="Cancel">
                     <X size={18} />
                 </button>
-                <button className="p-2 hover:bg-gray-700 rounded-full text-gray-400 hover:text-white transition-colors">
+                <button
+                    className="p-2 hover:bg-gray-700 rounded-full text-gray-400 hover:text-white transition-colors"
+                    title="Open Folder"
+                    onClick={() => onOpenFolder && item.path && onOpenFolder(item.path)}
+                >
                     <FolderOpen size={18} />
                 </button>
             </div>

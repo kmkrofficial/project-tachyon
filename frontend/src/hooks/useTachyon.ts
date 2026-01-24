@@ -10,7 +10,38 @@ export function useTachyon() {
     const [downloads, setDownloads] = useState<Record<string, DownloadItem>>({});
 
     useEffect(() => {
-        // Listen for Progress
+        // Load History on Mount
+        const loadHistory = async () => {
+            if (App && App.GetTasks) {
+                try {
+                    const tasks = await App.GetTasks();
+                    // Convert Array to Record
+                    const history: Record<string, DownloadItem> = {};
+                    tasks.forEach((t: any) => {
+                        history[t.id] = {
+                            id: t.id,
+                            url: t.url,
+                            filename: t.filename,
+                            progress: t.progress,
+                            size: t.size,
+                            status: t.status as any,
+                            path: t.path,
+                            created_at: t.created_at,
+                            // Derived/Default values
+                            speed_MBs: 0,
+                            eta: "--"
+                        };
+                    });
+                    // Merge with existing (though on mount existing is empty)
+                    setDownloads(prev => ({ ...prev, ...history }));
+                } catch (e) {
+                    console.error("Failed to load history", e);
+                }
+            }
+        };
+        loadHistory();
+
+        // Listen for Progress (existing code...)
         const cleanupProgress = EventsOn("download:progress", (data: any) => {
             setDownloads((prev) => ({
                 ...prev,
@@ -52,9 +83,7 @@ export function useTachyon() {
         });
 
         return () => {
-            // EventsOff("download:progress"); 
-            // Wails events usually stick around, but if we wanted to unregister:
-            // EventsOff("download:progress");
+            // events cleanup
         };
     }, []);
 
@@ -62,16 +91,20 @@ export function useTachyon() {
         if (App && App.AddDownload) {
             try {
                 const id = await App.AddDownload(url);
-                // Initialize the item immediately in the UI
+                // The progress event / GetTasks will eventually populate it, 
+                // but setting initial state allows instant UI feedback
                 setDownloads(prev => ({
                     ...prev,
                     [id]: {
                         id,
+                        url: url,
                         filename: "Initializing...",
                         progress: 0,
+                        size: 0,
                         speed_MBs: 0,
                         eta: "--",
-                        status: "downloading"
+                        status: "downloading",
+                        created_at: new Date().toISOString()
                     }
                 }))
                 return id;
@@ -80,13 +113,19 @@ export function useTachyon() {
                 throw e;
             }
         } else {
-            console.warn("Backend not connected");
             throw new Error("Backend not connected");
+        }
+    };
+
+    const openFolder = async (path: string) => {
+        if (App && App.OpenFolder && path) {
+            await App.OpenFolder(path);
         }
     };
 
     return {
         downloads,
         addDownload,
+        openFolder
     };
 }

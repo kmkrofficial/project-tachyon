@@ -4,6 +4,7 @@ import (
 	"embed"
 	"project-tachyon/internal/core"
 	"project-tachyon/internal/logger"
+	"project-tachyon/internal/storage"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/menu"
@@ -23,28 +24,23 @@ func main() {
 		return
 	}
 
-	// Initialize Engine
-	engine := core.NewEngine(log)
+	// Initialize Storage
+	store, err := storage.NewStorage()
+	if err != nil {
+		log.Error("Error initializing storage", "error", err) // Log it but maybe proceed or fatal?
+		// For now, let's fatal if storage fails as app depends on it
+		println("Error initializing storage:", err.Error())
+		return
+	}
+	defer store.Close()
+
+	// Initialize Engine with Storage
+	engine := core.NewEngine(log, store)
 
 	// Create an instance of the app structure, injecting dependencies
 	app := NewApp(log, engine)
 
 	// Create System Tray Menu
-	// Note: Wails v2 doesn't have a direct "Tray" option in App options in all versions,
-	// but typically application menu can work, or we rely on OS behaviors.
-	// However, specifically since the user ASKED for it, we will use the Application Menu
-	// as a fallback or verify if we can bind it.
-	//
-	// Actually, simply creating a Wails app loop with proper bindings is key.
-	// For a specific Tray Icon, usually one needs `options.Mac` or specific platform code.
-	// But let's assume standard App Menu for "Quit" is sufficient for now because
-	// "Minimize to Tray" implies the icon exists. Wails on Windows usually just minimizes to taskbar
-	// unless a systray dep is used.
-	//
-	// CRITICAL FIX: To get a "Tray Icon", we usually need to separate library or
-	// wait for Wails v3. But let's try to add the Application Menu for "Quit" at least
-	// so the user isn't stuck if we hide the window.
-
 	appMenu := menu.NewMenu()
 	fileMenu := appMenu.AddSubmenu("File")
 	fileMenu.AddText("Open Tachyon", keys.CmdOrCtrl("o"), func(_ *menu.CallbackData) {

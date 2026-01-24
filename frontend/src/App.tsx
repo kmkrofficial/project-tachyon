@@ -8,7 +8,7 @@ import { useTachyon } from './hooks/useTachyon';
 function App() {
     const [activeTab, setActiveTab] = useState("all");
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const { downloads, addDownload } = useTachyon();
+    const { downloads, addDownload, openFolder } = useTachyon();
 
     // Filter downloads based on active tab
     const filteredDownloads = Object.values(downloads).filter(item => {
@@ -51,7 +51,11 @@ function App() {
                             </div>
                         ) : (
                             filteredDownloads.map(item => (
-                                <DownloadItem key={item.id} item={item} />
+                                <DownloadItem
+                                    key={item.id}
+                                    item={item}
+                                    onOpenFolder={openFolder}
+                                />
                             ))
                         )}
                     </div>
