@@ -1,4 +1,8 @@
 import { useEffect, useState } from "react";
+// @ts-ignore
+import { EventsOn, EventsOff } from "../../wailsjs/runtime/runtime";
+// @ts-ignore
+import * as App from "../../wailsjs/go/main/App";
 
 // Define the shape of a Download Item locally to match Backend events
 export type DownloadItem = {
@@ -12,35 +16,12 @@ export type DownloadItem = {
     path?: string;
 };
 
-// Declare the Wails runtime/window object types if not already present
-declare global {
-    interface Window {
-        runtime: {
-            EventsOn: (event: string, callback: (data: any) => void) => void;
-            EventsOff: (event: string) => void;
-        };
-        go: {
-            main: {
-                App: {
-                    AddDownload: (url: string) => Promise<string>;
-                };
-            };
-        };
-    }
-}
-
 export function useTachyon() {
     const [downloads, setDownloads] = useState<Record<string, DownloadItem>>({});
 
     useEffect(() => {
-        // Check if Wails runtime is available
-        if (!window.runtime) {
-            console.warn("Wails runtime not found. Are you running in a browser?");
-            return;
-        }
-
         // Listen for Progress
-        window.runtime.EventsOn("download:progress", (data: any) => {
+        const cleanupProgress = EventsOn("download:progress", (data: any) => {
             setDownloads((prev) => ({
                 ...prev,
                 [data.id]: {
@@ -56,7 +37,7 @@ export function useTachyon() {
         });
 
         // Listen for Completion
-        window.runtime.EventsOn("download:completed", (data: any) => {
+        const cleanupCompleted = EventsOn("download:completed", (data: any) => {
             setDownloads((prev) => ({
                 ...prev,
                 [data.id]: {
@@ -66,10 +47,10 @@ export function useTachyon() {
                     path: data.path
                 }
             }))
-        })
+        });
 
         // Listen for Errors
-        window.runtime.EventsOn("download:failed", (data: any) => {
+        const cleanupFailed = EventsOn("download:failed", (data: any) => {
             setDownloads((prev) => ({
                 ...prev,
                 [data.id]: {
@@ -78,18 +59,19 @@ export function useTachyon() {
                     error: data.error
                 }
             }))
-        })
+        });
 
         return () => {
-            // Cleanup listeners if necessary (Wails handles usually persist, but good practice)
-            // window.runtime.EventsOff("download:progress");
+            // EventsOff("download:progress"); 
+            // Wails events usually stick around, but if we wanted to unregister:
+            // EventsOff("download:progress");
         };
     }, []);
 
     const addDownload = async (url: string) => {
-        if (window.go?.main?.App?.AddDownload) {
+        if (App && App.AddDownload) {
             try {
-                const id = await window.go.main.App.AddDownload(url);
+                const id = await App.AddDownload(url);
                 // Initialize the item immediately in the UI
                 setDownloads(prev => ({
                     ...prev,
@@ -103,12 +85,13 @@ export function useTachyon() {
                     }
                 }))
                 return id;
-            } catch (e) {
+            } catch (e: any) {
                 console.error("Failed to add download", e);
                 throw e;
             }
         } else {
             console.warn("Backend not connected");
+            throw new Error("Backend not connected");
         }
     };
 
