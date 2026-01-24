@@ -1,6 +1,6 @@
 import { File, FileVideo, FileArchive, FileText, Pause, Play, X, FolderOpen } from "lucide-react";
 import { ProgressBar } from "./ProgressBar";
-import { DownloadItem as DownloadItemType } from "../hooks/useTachyon";
+import { DownloadItem as DownloadItemType } from "../types";
 
 type DownloadItemProps = {
     item: DownloadItemType;

@@ -27,6 +27,13 @@ tasks:
       - wails build
       - task: checkpoint
 
+  test:
+    desc: Runs frontend and backend tests
+    cmds:
+      - cd frontend && npm run test -- --run
+      - go test ./...
+
+
   checkpoint:
     desc: Auto-saves changes to Git
     cmds:

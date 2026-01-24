@@ -4,17 +4,7 @@ import { EventsOn, EventsOff } from "../../wailsjs/runtime/runtime";
 // @ts-ignore
 import * as App from "../../wailsjs/go/main/App";
 
-// Define the shape of a Download Item locally to match Backend events
-export type DownloadItem = {
-    id: string;
-    filename: string;
-    progress: number;
-    speed_MBs: number;
-    eta: string;
-    status: "downloading" | "paused" | "completed" | "error";
-    error?: string;
-    path?: string;
-};
+import { DownloadItem } from "../types";
 
 export function useTachyon() {
     const [downloads, setDownloads] = useState<Record<string, DownloadItem>>({});
