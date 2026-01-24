@@ -34,3 +34,21 @@ tasks:
       - git commit -m "Phase 2.5 Auto-Save: System Integration"
       - echo "Checkpoint Saved"
     ignore_error: true
+
+  checkpoint-3-1:
+    desc: Checkpoint for UI Library
+    cmds:
+      - git add .
+      - git commit -m "Phase 3.1: UI Library Created"
+
+  checkpoint-3-2:
+    desc: Checkpoint for Backend Connection
+    cmds:
+      - git add .
+      - git commit -m "Phase 3.2: Backend Connected"
+
+  checkpoint-3-3:
+    desc: Checkpoint for Unit Tests
+    cmds:
+      - git add .
+      - git commit -m "Phase 3.3: Unit Tests Passed"
