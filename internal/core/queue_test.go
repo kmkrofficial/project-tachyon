@@ -9,9 +9,9 @@ import (
 func TestPriorityQueue(t *testing.T) {
 	dq := NewDownloadQueue()
 
-	t1 := &storage.Task{ID: "1", Priority: 0, CreatedAt: time.Now()} // Low
-	t2 := &storage.Task{ID: "2", Priority: 2, CreatedAt: time.Now()} // High
-	t3 := &storage.Task{ID: "3", Priority: 1, CreatedAt: time.Now()} // Normal
+	t1 := &storage.DownloadTask{ID: "1", Priority: 0, CreatedAt: time.Now()} // Low
+	t2 := &storage.DownloadTask{ID: "2", Priority: 2, CreatedAt: time.Now()} // High
+	t3 := &storage.DownloadTask{ID: "3", Priority: 1, CreatedAt: time.Now()} // Normal
 
 	dq.Push(t1)
 	dq.Push(t2)

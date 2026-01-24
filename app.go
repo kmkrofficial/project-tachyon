@@ -103,13 +103,13 @@ func (a *App) OpenFolder(id string) {
 		return
 	}
 
-	if task.Path == "" {
+	if task.SavePath == "" {
 		return
 	}
 
 	// Use OS Utils
-	if err := core.OpenFolder(task.Path); err != nil {
-		a.logger.Error("Failed to open folder", "path", task.Path, "error", err)
+	if err := core.OpenFolder(task.SavePath); err != nil {
+		a.logger.Error("Failed to open folder", "path", task.SavePath, "error", err)
 	}
 }
 
@@ -120,12 +120,12 @@ func (a *App) OpenFile(id string) {
 		return
 	}
 
-	if task.Path == "" {
+	if task.SavePath == "" {
 		return
 	}
 
-	if err := core.OpenFile(task.Path); err != nil {
-		a.logger.Error("Failed to open file", "path", task.Path, "error", err)
+	if err := core.OpenFile(task.SavePath); err != nil {
+		a.logger.Error("Failed to open file", "path", task.SavePath, "error", err)
 	}
 }
 

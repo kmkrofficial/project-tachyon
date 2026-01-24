@@ -4,7 +4,6 @@ import (
 	"path/filepath"
 	"project-tachyon/internal/storage"
 	"sync"
-	"time"
 
 	"github.com/shirou/gopsutil/v3/disk"
 )
@@ -38,37 +37,41 @@ func NewStatsManager(s *storage.Storage) *StatsManager {
 	}
 }
 
-// TrackDownloadBytes increments the daily and total counters
+// TrackDownloadBytes increments today's download stats using SQL upsert
 func (sm *StatsManager) TrackDownloadBytes(bytes int64) {
 	go func() {
-		today := time.Now().Format("2006-01-02")
-		sm.storage.IncrementStat("stat_total_lifetime", bytes)
-		sm.storage.IncrementStat("stat_daily_"+today, bytes)
+		sm.storage.IncrementDailyBytes(bytes)
 	}()
 }
 
-// TrackFileCompleted increments the total file count
+// TrackFileCompleted increments today's file count using SQL upsert
 func (sm *StatsManager) TrackFileCompleted() {
 	go func() {
-		sm.storage.IncrementStat("stat_total_files", 1)
+		sm.storage.IncrementDailyFiles()
 	}()
 }
 
+// GetLifetimeStats returns total bytes downloaded using SQL SUM
 func (sm *StatsManager) GetLifetimeStats() (int64, error) {
-	return sm.storage.GetStatInt("stat_total_lifetime")
+	return sm.storage.GetTotalLifetime()
 }
 
+// GetTotalFiles returns total files downloaded using SQL SUM
 func (sm *StatsManager) GetTotalFiles() (int64, error) {
-	return sm.storage.GetStatInt("stat_total_files")
+	return sm.storage.GetTotalFiles()
 }
 
+// GetDailyStats returns the last N days of stats from SQLite
 func (sm *StatsManager) GetDailyStats(days int) (map[string]int64, error) {
+	stats, err := sm.storage.GetDailyHistory(days)
+	if err != nil {
+		return make(map[string]int64), err
+	}
+
+	// Convert to map format for frontend compatibility
 	res := make(map[string]int64)
-	now := time.Now()
-	for i := 0; i < days; i++ {
-		date := now.AddDate(0, 0, -i).Format("2006-01-02")
-		val, _ := sm.storage.GetStatInt("stat_daily_" + date)
-		res[date] = val
+	for _, stat := range stats {
+		res[stat.Date] = stat.Bytes
 	}
 	return res, nil
 }

@@ -83,15 +83,14 @@ func (e *TachyonEngine) queueWorker() {
 	}
 }
 
-func (e *TachyonEngine) executeTask(task *storage.Task) {
-	// 2. Client Initialization
+func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
+	// Client Initialization
 	client := grab.NewClient()
 	client.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-	req, err := grab.NewRequest(task.Path, task.URL)
+	req, err := grab.NewRequest(task.SavePath, task.URL)
 	if err != nil {
 		e.logger.Error("Failed to create request for queued task", "id", task.ID, "error", err)
-		// Mark error state
 		task.Status = "error"
 		e.storage.SaveTask(*task)
 		return
@@ -119,13 +118,13 @@ func (e *TachyonEngine) StartDownload(urlStr string, destPath string) (string, e
 	finalPath, _ := GetOrganizedPath(destPath, guessedFilename)
 	category := GetCategory(guessedFilename)
 
-	// Create Initial Task Record
-	task := storage.Task{
+	// Create Initial Task Record (using new SQLite model)
+	task := storage.DownloadTask{
 		ID:        downloadID,
 		URL:       urlStr,
 		Filename:  filepath.Base(finalPath),
-		Path:      finalPath,
-		Status:    "pending", // Changed from 'downloading'
+		SavePath:  finalPath,
+		Status:    "pending",
 		Category:  category,
 		Priority:  1, // Default Normal
 		Progress:  0,
@@ -157,7 +156,7 @@ func (e *TachyonEngine) StartDownload(urlStr string, destPath string) (string, e
 	return downloadID, nil
 }
 
-func (e *TachyonEngine) processDownload(client *grab.Client, req *grab.Request, id string, task storage.Task) {
+func (e *TachyonEngine) processDownload(client *grab.Client, req *grab.Request, id string, task storage.DownloadTask) {
 	e.logger.Info("Download Started", "id", id, "url", req.URL().String(), "dest", req.Filename)
 
 	resp := client.Do(req)
@@ -170,7 +169,7 @@ func (e *TachyonEngine) processDownload(client *grab.Client, req *grab.Request, 
 	// Update Filename if grab resolved a better one (e.g. from Content-Disposition)
 	if resp.Filename != "" {
 		task.Filename = filepath.Base(resp.Filename)
-		task.Path = resp.Filename
+		task.SavePath = resp.Filename
 	}
 
 	// Ticker for progress monitoring (UI updates)
@@ -208,9 +207,11 @@ Loop:
 			}
 
 		case <-dbTicker.C:
-			// Persist state
+			// Checkpoint: Persist state to SQLite (every 2 seconds)
 			task.Progress = resp.Progress() * 100
-			task.Size = resp.Size()
+			task.TotalSize = resp.Size()
+			task.Downloaded = resp.BytesComplete()
+			task.Speed = float64(resp.BytesPerSecond())
 			task.Status = "downloading"
 			if err := e.storage.SaveTask(task); err != nil {
 				e.logger.Error("Failed to save task state", "id", id, "error", err)

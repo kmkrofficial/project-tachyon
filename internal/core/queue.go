@@ -6,9 +6,9 @@ import (
 	"sync"
 )
 
-// Item wraps a Task for the PriorityQueue
+// Item wraps a DownloadTask for the PriorityQueue
 type Item struct {
-	Task     *storage.Task
+	Task     *storage.DownloadTask
 	Priority int // 0=Low, 1=Normal, 2=High
 	Index    int // Index in the heap
 }
@@ -64,7 +64,7 @@ func NewDownloadQueue() *DownloadQueue {
 	return dq
 }
 
-func (dq *DownloadQueue) Push(task *storage.Task) {
+func (dq *DownloadQueue) Push(task *storage.DownloadTask) {
 	dq.mutex.Lock()
 	defer dq.mutex.Unlock()
 
@@ -76,7 +76,7 @@ func (dq *DownloadQueue) Push(task *storage.Task) {
 	dq.cond.Signal()
 }
 
-func (dq *DownloadQueue) Pop() *storage.Task {
+func (dq *DownloadQueue) Pop() *storage.DownloadTask {
 	dq.mutex.Lock()
 	defer dq.mutex.Unlock()
 

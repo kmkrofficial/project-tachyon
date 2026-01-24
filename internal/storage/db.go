@@ -1,232 +1,295 @@
 package storage
 
 import (
-	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"time"
 
-	"github.com/dgraph-io/badger/v4"
+	"github.com/glebarez/sqlite"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+	"gorm.io/gorm/logger"
 )
 
-type Task struct {
-	ID        string    `json:"id"`
-	URL       string    `json:"url"`
-	Filename  string    `json:"filename"` // Added for UI display logic matching Frontend
-	Path      string    `json:"path"`
-	Status    string    `json:"status"` // downloading, completed, paused, error
-	Category  string    `json:"category"`
-	Priority  int       `json:"priority"` // 0=Low, 1=Normal, 2=High
-	Progress  float64   `json:"progress"`
-	Size      int64     `json:"size"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-}
-
+// Storage handles all database operations using SQLite
 type Storage struct {
-	db *badger.DB
+	db *gorm.DB
 }
 
+// NewStorage initializes the SQLite database connection
 func NewStorage() (*Storage, error) {
+	// Get app data directory
 	appData, err := os.UserConfigDir()
 	if err != nil {
-		return nil, err
-	}
-	dbPath := filepath.Join(appData, "Tachyon", "data")
-
-	// Ensure directory exists
-	if err := os.MkdirAll(dbPath, 0755); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get config dir: %w", err)
 	}
 
-	opts := badger.DefaultOptions(dbPath)
-	opts.Logger = nil // Disable default logger to avoid noise
+	dbDir := filepath.Join(appData, "Tachyon")
+	if err := os.MkdirAll(dbDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create db dir: %w", err)
+	}
 
-	db, err := badger.Open(opts)
+	dbPath := filepath.Join(dbDir, "tachyon.db")
+
+	// Open SQLite with Glebarez (Pure Go, no CGO)
+	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to open badger db: %w", err)
+		return nil, fmt.Errorf("failed to open database: %w", err)
+	}
+
+	// Enable WAL mode for better concurrency
+	db.Exec("PRAGMA journal_mode=WAL;")
+	db.Exec("PRAGMA synchronous=NORMAL;")
+	db.Exec("PRAGMA cache_size=10000;")
+
+	// Auto-migrate tables
+	err = db.AutoMigrate(
+		&DownloadTask{},
+		&DownloadLocation{},
+		&DailyStat{},
+		&AppSetting{},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
 
 	return &Storage{db: db}, nil
 }
 
+// Close closes the database connection
 func (s *Storage) Close() error {
-	return s.db.Close()
-}
-
-func (s *Storage) SaveTask(task Task) error {
-	task.UpdatedAt = time.Now()
-
-	bytes, err := json.Marshal(task)
+	sqlDB, err := s.db.DB()
 	if err != nil {
 		return err
 	}
-
-	return s.db.Update(func(txn *badger.Txn) error {
-		return txn.Set([]byte("task_"+task.ID), bytes)
-	})
+	return sqlDB.Close()
 }
 
-func (s *Storage) DeleteTask(id string) error {
-	return s.db.Update(func(txn *badger.Txn) error {
-		return txn.Delete([]byte("task_" + id))
-	})
+// ============= Task Management =============
+
+// SaveTask creates or updates a download task (upsert)
+func (s *Storage) SaveTask(task DownloadTask) error {
+	task.UpdatedAt = time.Now()
+	return s.db.Save(&task).Error
 }
 
-func (s *Storage) GetAllTasks() ([]Task, error) {
-	var tasks []Task
-
-	err := s.db.View(func(txn *badger.Txn) error {
-		opts := badger.DefaultIteratorOptions
-		opts.PrefetchSize = 10
-		it := txn.NewIterator(opts)
-		defer it.Close()
-
-		prefix := []byte("task_")
-		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-			item := it.Item()
-			err := item.Value(func(v []byte) error {
-				var task Task
-				if err := json.Unmarshal(v, &task); err != nil {
-					return err
-				}
-				tasks = append(tasks, task)
-				return nil
-			})
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	// Sort by CreatedAt descending (newest first)
-	slices.SortFunc(tasks, func(a, b Task) int {
-		if b.CreatedAt.Before(a.CreatedAt) {
-			return -1
-		}
-		return 1
-	})
-
-	return tasks, nil
-}
-
-func (s *Storage) GetTask(id string) (Task, error) {
-	var task Task
-	err := s.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte("task_" + id))
-		if err != nil {
-			return err
-		}
-		return item.Value(func(val []byte) error {
-			return json.Unmarshal(val, &task)
-		})
-	})
+// GetTask retrieves a specific task by ID
+func (s *Storage) GetTask(id string) (DownloadTask, error) {
+	var task DownloadTask
+	err := s.db.First(&task, "id = ?", id).Error
 	return task, err
 }
 
-// IncrementStat atomically increments a counter
-func (s *Storage) IncrementStat(key string, delta int64) error {
-	return s.db.Update(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(key))
-		var current int64
-		if err == nil {
-			item.Value(func(val []byte) error {
-				current = int64(binary.BigEndian.Uint64(val)) // Simple storing as bytes
-				// Actually Badger has MergeOperator for counters, but let's stick to simple Get/Set for now
-				// Wait, JSON number is easier if we want interop, but binary is faster.
-				// Let's use JSON for consistency with other data or just string conversion.
-				// Reverting to JSON/String for simplicity.
-				var valInt int64
-				json.Unmarshal(val, &valInt)
-				current = valInt
-				return nil
-			})
-		} else if err != badger.ErrKeyNotFound {
-			return err
-		}
-
-		current += delta
-		valBytes, _ := json.Marshal(current)
-		return txn.Set([]byte(key), valBytes)
-	})
+// GetAllTasks returns all non-deleted tasks, newest first
+func (s *Storage) GetAllTasks() ([]DownloadTask, error) {
+	var tasks []DownloadTask
+	err := s.db.Order("created_at desc").Find(&tasks).Error
+	return tasks, err
 }
 
+// GetTasksByStatus returns tasks filtered by status
+func (s *Storage) GetTasksByStatus(status string, limit int) ([]DownloadTask, error) {
+	var tasks []DownloadTask
+	query := s.db.Where("status = ?", status).Order("created_at desc")
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	err := query.Find(&tasks).Error
+	return tasks, err
+}
+
+// GetActiveTasks returns all downloading or pending tasks
+func (s *Storage) GetActiveTasks() ([]DownloadTask, error) {
+	var tasks []DownloadTask
+	err := s.db.Where("status IN ?", []string{"downloading", "pending"}).
+		Order("priority desc, created_at asc").
+		Find(&tasks).Error
+	return tasks, err
+}
+
+// DeleteTask soft-deletes a task
+func (s *Storage) DeleteTask(id string) error {
+	return s.db.Delete(&DownloadTask{}, "id = ?", id).Error
+}
+
+// UpdateTaskStatus updates just the status field
+func (s *Storage) UpdateTaskStatus(id, status string) error {
+	return s.db.Model(&DownloadTask{}).Where("id = ?", id).Update("status", status).Error
+}
+
+// UpdateTaskProgress updates progress and speed for a task
+func (s *Storage) UpdateTaskProgress(id string, progress float64, downloaded int64, speed float64) error {
+	return s.db.Model(&DownloadTask{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"progress":   progress,
+		"downloaded": downloaded,
+		"speed":      speed,
+		"updated_at": time.Now(),
+	}).Error
+}
+
+// ============= Download Locations =============
+
+// AddLocation adds or updates a download location
+func (s *Storage) AddLocation(path, nickname string) error {
+	loc := DownloadLocation{Path: path, Nickname: nickname}
+	return s.db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "path"}},
+		DoUpdates: clause.AssignmentColumns([]string{"nickname"}),
+	}).Create(&loc).Error
+}
+
+// GetLocations returns all saved download locations
+func (s *Storage) GetLocations() ([]DownloadLocation, error) {
+	var locations []DownloadLocation
+	err := s.db.Find(&locations).Error
+	return locations, err
+}
+
+// DeleteLocation removes a download location
+func (s *Storage) DeleteLocation(path string) error {
+	return s.db.Delete(&DownloadLocation{}, "path = ?", path).Error
+}
+
+// ============= Statistics (SQL Analytics) =============
+
+// IncrementStat atomically increments today's download bytes and optionally files
+func (s *Storage) IncrementStat(key string, bytes int64) error {
+	today := time.Now().Format("2006-01-02")
+
+	// Use upsert with SQL increment
+	return s.db.Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "date"}},
+		DoUpdates: clause.Assignments(map[string]interface{}{
+			"bytes": gorm.Expr("bytes + ?", bytes),
+		}),
+	}).Create(&DailyStat{Date: today, Bytes: bytes}).Error
+}
+
+// IncrementDailyBytes adds bytes to today's stats
+func (s *Storage) IncrementDailyBytes(bytes int64) error {
+	today := time.Now().Format("2006-01-02")
+	return s.db.Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "date"}},
+		DoUpdates: clause.Assignments(map[string]interface{}{
+			"bytes": gorm.Expr("bytes + ?", bytes),
+		}),
+	}).Create(&DailyStat{Date: today, Bytes: bytes}).Error
+}
+
+// IncrementDailyFiles adds a file count to today's stats
+func (s *Storage) IncrementDailyFiles() error {
+	today := time.Now().Format("2006-01-02")
+	return s.db.Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "date"}},
+		DoUpdates: clause.Assignments(map[string]interface{}{
+			"files": gorm.Expr("files + 1"),
+		}),
+	}).Create(&DailyStat{Date: today, Files: 1}).Error
+}
+
+// GetTotalLifetime returns total bytes downloaded all-time using SQL SUM
+func (s *Storage) GetTotalLifetime() (int64, error) {
+	var total int64
+	err := s.db.Model(&DailyStat{}).Select("IFNULL(SUM(bytes), 0)").Row().Scan(&total)
+	return total, err
+}
+
+// GetTotalFiles returns total files downloaded all-time using SQL SUM
+func (s *Storage) GetTotalFiles() (int64, error) {
+	var total int64
+	err := s.db.Model(&DailyStat{}).Select("IFNULL(SUM(files), 0)").Row().Scan(&total)
+	return total, err
+}
+
+// GetDailyHistory returns the last N days of stats
+func (s *Storage) GetDailyHistory(days int) ([]DailyStat, error) {
+	var stats []DailyStat
+	err := s.db.Order("date desc").Limit(days).Find(&stats).Error
+	return stats, err
+}
+
+// GetStatInt returns a stat value (for backward compatibility)
 func (s *Storage) GetStatInt(key string) (int64, error) {
-	var val int64
-	err := s.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(key))
-		if err != nil {
-			return err
-		}
-		return item.Value(func(v []byte) error {
-			return json.Unmarshal(v, &val)
-		})
-	})
-	if err == badger.ErrKeyNotFound {
-		return 0, nil
+	if key == "stat_total_lifetime" {
+		return s.GetTotalLifetime()
 	}
-	return val, err
+	if key == "stat_total_files" {
+		return s.GetTotalFiles()
+	}
+	// For daily stats, parse the date from key
+	return 0, nil
 }
 
-// GetStringList retrieves a list of strings from storage (e.g., domain whitelist/blacklist)
-func (s *Storage) GetStringList(key string) ([]string, error) {
-	var list []string
-	err := s.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(key))
-		if err != nil {
-			return err
-		}
-		return item.Value(func(v []byte) error {
-			return json.Unmarshal(v, &list)
-		})
-	})
-	if err == badger.ErrKeyNotFound {
-		return []string{}, nil
-	}
-	return list, err
-}
+// ============= App Settings =============
 
-// SetStringList stores a list of strings in storage
-func (s *Storage) SetStringList(key string, list []string) error {
-	bytes, err := json.Marshal(list)
-	if err != nil {
-		return err
-	}
-	return s.db.Update(func(txn *badger.Txn) error {
-		return txn.Set([]byte(key), bytes)
-	})
-}
-
-// GetString retrieves a single string value from storage
+// GetString retrieves a string setting by key
 func (s *Storage) GetString(key string) (string, error) {
-	var val string
-	err := s.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(key))
-		if err != nil {
-			return err
-		}
-		return item.Value(func(v []byte) error {
-			val = string(v)
-			return nil
-		})
-	})
-	if err == badger.ErrKeyNotFound {
+	var setting AppSetting
+	err := s.db.First(&setting, "key = ?", key).Error
+	if err == gorm.ErrRecordNotFound {
 		return "", nil
 	}
-	return val, err
+	return setting.Value, err
 }
 
-// SetString stores a single string value in storage
-func (s *Storage) SetString(key string, val string) error {
-	return s.db.Update(func(txn *badger.Txn) error {
-		return txn.Set([]byte(key), []byte(val))
-	})
+// SetString stores a string setting
+func (s *Storage) SetString(key, value string) error {
+	return s.db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "key"}},
+		DoUpdates: clause.AssignmentColumns([]string{"value"}),
+	}).Create(&AppSetting{Key: key, Value: value}).Error
+}
+
+// GetStringList retrieves a comma-separated list as slice
+func (s *Storage) GetStringList(key string) ([]string, error) {
+	val, err := s.GetString(key)
+	if err != nil || val == "" {
+		return []string{}, err
+	}
+	// Simple split by comma
+	var result []string
+	for _, item := range splitAndTrim(val) {
+		if item != "" {
+			result = append(result, item)
+		}
+	}
+	return result, nil
+}
+
+// SetStringList stores a slice as comma-separated string
+func (s *Storage) SetStringList(key string, list []string) error {
+	val := joinWithComma(list)
+	return s.SetString(key, val)
+}
+
+// Helper functions
+func splitAndTrim(s string) []string {
+	var result []string
+	current := ""
+	for _, c := range s {
+		if c == ',' {
+			result = append(result, current)
+			current = ""
+		} else {
+			current += string(c)
+		}
+	}
+	if current != "" {
+		result = append(result, current)
+	}
+	return result
+}
+
+func joinWithComma(list []string) string {
+	result := ""
+	for i, item := range list {
+		if i > 0 {
+			result += ","
+		}
+		result += item
+	}
+	return result
 }
