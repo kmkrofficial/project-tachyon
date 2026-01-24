@@ -1,0 +1,36 @@
+version: '3'
+
+tasks:
+  setup:
+    desc: Checks for Go/Node, installs Wails CLI, runs npm install
+    cmds:
+      - cmd: go version
+        silent: true
+        ignore_error: false
+      - cmd: node --version
+        silent: true
+        ignore_error: false
+      - cmd: wails doctor
+        ignore_error: true
+      - cmd: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+        ignore_error: true
+      - cmd: cd frontend && npm install
+
+  dev:
+    desc: Runs wails dev
+    cmds:
+      - wails dev
+
+  build:
+    desc: Runs wails build
+    cmds:
+      - wails build
+      - task: checkpoint
+
+  checkpoint:
+    desc: Auto-saves changes to Git
+    cmds:
+      - git add .
+      - git commit -m "Phase 2.5 Auto-Save: System Integration"
+      - echo "Checkpoint Saved"
+    ignore_error: true

@@ -1,0 +1,29 @@
+# Wails
+build/
+frontend/node_modules/
+frontend/dist/
+wails.json
+
+# IDEs
+.vscode/
+.idea/
+.cursor/
+
+# Logs
+*.log
+app.json
+internal/logger/*.json
+
+# Database
+internal/storage/badger_data/
+
+# Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+project-tachyon.exe
+
+# OS
+.DS_Store
+Thumbs.db
