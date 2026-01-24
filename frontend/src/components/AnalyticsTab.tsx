@@ -1,14 +1,24 @@
 import React, { useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Activity, Download, HardDrive, Wifi, Zap } from 'lucide-react';
+import { Activity, Download, HardDrive, Wifi, Zap, Loader2 } from 'lucide-react';
 import { useTachyon } from '../hooks/useTachyon';
 import prettyBytes from 'pretty-bytes';
 import { cn } from '../utils';
 
+interface SpeedTestState {
+    dl: number;
+    ul: number;
+    ping: number;
+    serverName: string;
+    serverLocation: string;
+    isp: string;
+}
+
 export const AnalyticsTab = () => {
     const { runSpeedTest, getLifetimeStats } = useTachyon();
-    const [speedTestResult, setSpeedTestResult] = useState<{ dl: number, ul: number, ping: number } | null>(null);
+    const [speedTestResult, setSpeedTestResult] = useState<SpeedTestState | null>(null);
     const [testing, setTesting] = useState(false);
+    const [testError, setTestError] = useState<string | null>(null);
     const [stats, setStats] = useState({ totalBytes: 0, files: 0 });
 
     React.useEffect(() => {
@@ -19,17 +29,24 @@ export const AnalyticsTab = () => {
 
     const handleTest = async () => {
         setTesting(true);
+        setTestError(null);
         try {
             const res = await runSpeedTest();
             if (res) {
                 setSpeedTestResult({
                     dl: res.download_mbps,
                     ul: res.upload_mbps,
-                    ping: res.ping_ms
+                    ping: res.ping_ms,
+                    serverName: res.server_name || 'Unknown',
+                    serverLocation: res.server_location || 'Unknown',
+                    isp: res.isp || ''
                 });
+            } else {
+                setTestError("Speed test failed - no data returned");
             }
         } catch (e) {
             console.error("Speed test failed", e);
+            setTestError("Connection failed. Check your internet.");
         }
         setTesting(false);
     };
@@ -94,31 +111,55 @@ export const AnalyticsTab = () => {
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 relative overflow-hidden group">
                     <div className="absolute top-0 right-0 p-32 bg-cyan-500/5 blur-[100px] rounded-full pointer-events-none"></div>
 
-                    <h3 className="text-lg font-semibold text-slate-200 mb-8 relative z-10">Connection Quality</h3>
+                    <h3 className="text-lg font-semibold text-slate-200 mb-4 relative z-10">Connection Quality</h3>
 
-                    <div className="flex flex-col items-center justify-center h-[60%] relative z-10">
+                    {/* Server Info */}
+                    {speedTestResult && (
+                        <p className="text-xs text-slate-500 text-center mb-2 relative z-10">
+                            {speedTestResult.serverLocation} {speedTestResult.isp && `• ${speedTestResult.isp}`}
+                        </p>
+                    )}
+
+                    <div className="flex flex-col items-center justify-center h-[50%] relative z-10">
                         {/* Gauge UI Simulation */}
                         <div className="w-48 h-24 bg-slate-800 rounded-t-full relative overflow-hidden mb-6">
                             <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-40 h-20 bg-slate-900 rounded-t-full flex items-end justify-center pb-2">
-                                <span className={cn("text-3xl font-mono font-bold transition-all", testing ? "text-cyan-400 animate-pulse" : "text-white")}>
-                                    {speedTestResult ? speedTestResult.dl.toFixed(0) : "--"}
-                                </span>
-                                <span className="text-xs text-slate-500 mb-1 ml-1">Mbps</span>
+                                {testing ? (
+                                    <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mb-2" />
+                                ) : (
+                                    <>
+                                        <span className={cn("text-3xl font-mono font-bold transition-all", speedTestResult ? "text-white" : "text-slate-600")}>
+                                            {speedTestResult ? speedTestResult.dl.toFixed(0) : "--"}
+                                        </span>
+                                        <span className="text-xs text-slate-500 mb-1 ml-1">Mbps</span>
+                                    </>
+                                )}
                             </div>
                             <div className="absolute bottom-0 left-0 w-full h-2 bg-slate-700"></div>
-                            {/* Needle Animation would go here */}
                         </div>
 
                         <button
                             onClick={handleTest}
                             disabled={testing}
-                            className="bg-cyan-600 hover:bg-cyan-500 text-white px-8 py-3 rounded-full font-bold shadow-lg shadow-cyan-500/20 active:scale-95 transition-all disabled:opacity-50"
+                            className="bg-cyan-600 hover:bg-cyan-500 text-white px-8 py-3 rounded-full font-bold shadow-lg shadow-cyan-500/20 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                         >
-                            {testing ? "Testing..." : "Run Speed Test"}
+                            {testing ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    Connecting...
+                                </>
+                            ) : (
+                                "Run Speed Test"
+                            )}
                         </button>
+
+                        {/* Error Message */}
+                        {testError && (
+                            <p className="text-red-400 text-xs mt-3">{testError}</p>
+                        )}
                     </div>
 
-                    <div className="grid grid-cols-3 gap-4 mt-auto pt-6 border-t border-slate-800 relative z-10">
+                    <div className="grid grid-cols-3 gap-4 mt-auto pt-4 border-t border-slate-800 relative z-10">
                         <div className="text-center">
                             <p className="text-xs text-slate-500 uppercase">Ping</p>
                             <p className="text-lg font-mono text-yellow-400">{speedTestResult ? speedTestResult.ping : '-- '} ms</p>
