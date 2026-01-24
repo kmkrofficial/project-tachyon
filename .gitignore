@@ -1,30 +1,33 @@
-# Wails
-build/
-frontend/node_modules/
+# Wails & Build
+build/bin/
+build/wails_build_internal
 frontend/dist/
-wails.json
+frontend/node_modules/
 frontend/wailsjs/
 
-# IDEs
+# App Data (CRITICAL)
+internal/storage/badger_data/
+logs/
+*.log
+app.json
+
+# IDEs & System
 .vscode/
 .idea/
 .cursor/
-
-# Logs
-*.log
-app.json
-internal/logger/*.json
-
-# Database
-internal/storage/badger_data/
+.DS_Store
+Thumbs.db
 
 # Binaries
 *.exe
 *.dll
 *.so
 *.dylib
-project-tachyon.exe
+*.syso
 
-# OS
-.DS_Store
-Thumbs.db
+# Go
+*.test
+__debug_bin*
+
+# Misc
+wails.json

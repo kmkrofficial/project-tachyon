@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -34,15 +35,48 @@ const (
 	KeyDomainWhitelist = "settings_domain_whitelist"
 	KeyDomainBlacklist = "settings_domain_blacklist"
 	KeySilentMode      = "settings_silent_mode"
+	KeyAPIToken        = "settings_api_token"
 )
 
 func NewAPIServer(logger *slog.Logger, engine *TachyonEngine, store *storage.Storage) *APIServer {
+	// Load or generate API token
+	token := getOrCreateToken(store, logger)
+
 	return &APIServer{
 		logger:  logger,
 		engine:  engine,
 		storage: store,
-		token:   "tachyon-dev-token", // FIXME: Implement persistence
+		token:   token,
 	}
+}
+
+// getOrCreateToken loads existing token from storage or generates a new one
+func getOrCreateToken(store *storage.Storage, logger *slog.Logger) string {
+	token, err := store.GetString(KeyAPIToken)
+	if err == nil && token != "" {
+		logger.Info("Loaded existing API token")
+		return token
+	}
+
+	// Generate new random token
+	token = generateRandomToken()
+	if err := store.SetString(KeyAPIToken, token); err != nil {
+		logger.Error("Failed to save API token", "error", err)
+	} else {
+		logger.Info("Generated new API token")
+	}
+	return token
+}
+
+// generateRandomToken creates a secure random token
+func generateRandomToken() string {
+	b := make([]byte, 32)
+	_, err := rand.Read(b)
+	if err != nil {
+		// Fallback to uuid if crypto/rand fails
+		return "tachyon-" + fmt.Sprintf("%x", time.Now().UnixNano())
+	}
+	return fmt.Sprintf("%x", b)
 }
 
 func (s *APIServer) Start(port int) {
