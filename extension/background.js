@@ -23,54 +23,65 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
 async function sendToTachyon(url) {
     // Get Config
-    const config = await chrome.storage.local.get(["serverUrl", "apiToken"]);
-    const serverUrl = config.serverUrl || DEFAULT_SERVER_URL;
-    const apiToken = config.apiToken || DEFAULT_TOKEN;
+    const config = await chrome.storage.local.get(["mode", "remoteUrl", "apiToken", "autoGrab"]);
+
+    // Auto-Grab Check (If triggered automatically by sniffer) -- wait, this fn is called by Context Menu too.
+    // We assume context menu click = FORCE download.
+    // If called by sniffer, it handles logic.
+
+    let serverUrl = "http://localhost:45000";
+    let token = "";
+
+    if (config.mode === 'remote') {
+        serverUrl = config.remoteUrl || serverUrl;
+        token = config.apiToken || "";
+    }
 
     try {
-        // Get Cookies (Best Effort)
         const cookies = await chrome.cookies.getAll({ url: url });
         const cookieString = cookies.map(c => `${c.name}=${c.value}`).join("; ");
-
-        // Determine User Agent (Roughly)
         const userAgent = navigator.userAgent;
 
         const payload = {
             url: url,
             cookies: cookieString,
             userAgent: userAgent,
-            referer: url // Simplification
+            referer: url
         };
 
         const response = await fetch(`${serverUrl}/api/v1/download`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "X-Tachyon-Token": apiToken
+                "X-Tachyon-Token": token
             },
             body: JSON.stringify(payload)
         });
 
         if (response.ok) {
             chrome.action.setBadgeText({ text: "OK" });
-            chrome.action.setBadgeBackgroundColor({ color: "#00AA00" });
+            chrome.action.setBadgeBackgroundColor({ color: "#22c55e" });
             setTimeout(() => chrome.action.setBadgeText({ text: "" }), 2000);
         } else {
             console.error("Tachyon Server Error:", response.status);
             chrome.action.setBadgeText({ text: "ERR" });
-            chrome.action.setBadgeBackgroundColor({ color: "#AA0000" });
+            chrome.action.setBadgeBackgroundColor({ color: "#ef4444" });
         }
     } catch (err) {
         console.error("Failed to connect to Tachyon:", err);
         chrome.action.setBadgeText({ text: "OFF" });
-        chrome.action.setBadgeBackgroundColor({ color: "#555555" });
+        chrome.action.setBadgeBackgroundColor({ color: "#555" });
     }
 }
 
 // Media Sniffer
 chrome.webRequest.onHeadersReceived.addListener(
-    (details) => {
-        if (details.tabId === -1) return; // Ignore background requests
+    async (details) => {
+        if (details.tabId === -1) return;
+
+        // Check if Auto-Grab enabled
+        const config = await chrome.storage.local.get("autoGrab");
+        if (config.autoGrab === false) return; // Default true if undefined, but explicit false disables
 
         const contentTypeHeader = details.responseHeaders.find(h => h.name.toLowerCase() === 'content-type');
         if (!contentTypeHeader) return;

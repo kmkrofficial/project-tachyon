@@ -15,18 +15,25 @@ import (
 )
 
 type TachyonEngine struct {
-	logger  *slog.Logger
-	storage *storage.Storage
-	ctx     context.Context
-	// ActiveDownloads maps DownloadID (string) to *grab.Response
+	logger          *slog.Logger
+	storage         *storage.Storage
+	ctx             context.Context
 	activeDownloads sync.Map
+	queue           *DownloadQueue
+	semaphore       chan struct{}
+	stats           *StatsManager
 }
 
 func NewEngine(logger *slog.Logger, storage *storage.Storage) *TachyonEngine {
-	return &TachyonEngine{
-		logger:  logger,
-		storage: storage,
+	e := &TachyonEngine{
+		logger:    logger,
+		storage:   storage,
+		queue:     NewDownloadQueue(),
+		semaphore: make(chan struct{}, 3),
+		stats:     NewStatsManager(storage),
 	}
+	go e.queueWorker()
+	return e
 }
 
 func (e *TachyonEngine) SetContext(ctx context.Context) {
@@ -37,34 +44,85 @@ func (e *TachyonEngine) GetHistory() ([]storage.Task, error) {
 	return e.storage.GetAllTasks()
 }
 
+func (e *TachyonEngine) GetTask(id string) (storage.Task, error) {
+	return e.storage.GetTask(id)
+}
+
+func (e *TachyonEngine) SetMaxConcurrent(n int) {
+	if n < 1 {
+		return
+	}
+	// Resizing channel hard at runtime, easier to just update a specialized semaphore or use weighted semaphore.
+	// For Phase 3.75 simple semaphore channel replacement or just logging TODO.
+	// Ideally we use golang.org/x/sync/semaphore but sticking to stdlib.
+	// We will stick to fixed 3 for now or implement dynamic adjustment later.
+}
+
+func (e *TachyonEngine) queueWorker() {
+	for {
+		task := e.queue.Pop() // Blocks until available
+		if task == nil {
+			continue
+		}
+
+		e.semaphore <- struct{}{} // Acquire token (blocks if full)
+
+		go func(t *storage.Task) {
+			defer func() { <-e.semaphore }() // Release token
+
+			// Re-create req logic here or call internal helper
+			// We need to re-initialize client/req because they weren't stored in Queue, only the Task model.
+			// This means we might need to store URL in Task (we do).
+			e.executeTask(t)
+		}(task)
+	}
+}
+
+func (e *TachyonEngine) executeTask(task *storage.Task) {
+	// 2. Client Initialization
+	client := grab.NewClient()
+	client.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+	req, err := grab.NewRequest(task.Path, task.URL)
+	if err != nil {
+		e.logger.Error("Failed to create request for queued task", "id", task.ID, "error", err)
+		// Mark error state
+		task.Status = "error"
+		e.storage.SaveTask(*task)
+		return
+	}
+
+	e.processDownload(client, req, task.ID, *task)
+}
+
 func (e *TachyonEngine) StartDownload(urlStr string, destPath string) (string, error) {
 	// 1. Validation
 	if urlStr == "" {
 		return "", fmt.Errorf("empty URL")
 	}
 
-	// 2. Client Initialization
-	client := grab.NewClient()
-	client.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-
-	req, err := grab.NewRequest(destPath, urlStr)
-	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// 3. Optimization: "Hydra" Mode
-	// req.NoOfWorkers = 32 // FIXME: Verify grab v3 API for this.
-
 	// Generate Download ID
 	downloadID := uuid.New().String()
+
+	// Categorization
+	// Guess filename from URL for categorization
+	guessedFilename := filepath.Base(urlStr) // Simple extraction, robust enough for category
+	if guessedFilename == "" || guessedFilename == "." {
+		guessedFilename = "unknown"
+	}
+
+	finalPath, _ := GetOrganizedPath(destPath, guessedFilename)
+	category := GetCategory(guessedFilename)
 
 	// Create Initial Task Record
 	task := storage.Task{
 		ID:        downloadID,
 		URL:       urlStr,
-		Filename:  filepath.Base(destPath), // Initial guess, grab might update it
-		Path:      destPath,
-		Status:    "downloading",
+		Filename:  filepath.Base(finalPath),
+		Path:      finalPath,
+		Status:    "pending", // Changed from 'downloading'
+		Category:  category,
+		Priority:  1, // Default Normal
 		Progress:  0,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -72,11 +130,24 @@ func (e *TachyonEngine) StartDownload(urlStr string, destPath string) (string, e
 
 	if err := e.storage.SaveTask(task); err != nil {
 		e.logger.Error("Failed to save initial task", "error", err)
-		// Proceed anyway? Ideally yes, but let's log error.
 	}
 
-	// 4. Async Execution
-	go e.processDownload(client, req, downloadID, task)
+	// 4. Enqueue
+	e.queue.Push(&task)
+
+	// Notify UI of "Pending" state immediately
+	if e.ctx != nil {
+		// Emit event or rely on GetTasks polling if any?
+		// Best to emit "download:queued" or just let the "progress" logic pick it up when it starts.
+		// But UI expects "download:progress" to see it.
+		// Let's emit an initial packet.
+		runtime.EventsEmit(e.ctx, "download:progress", map[string]interface{}{
+			"id":       downloadID,
+			"progress": 0,
+			"status":   "pending",
+			"filename": task.Filename,
+		})
+	}
 
 	return downloadID, nil
 }
@@ -86,6 +157,9 @@ func (e *TachyonEngine) processDownload(client *grab.Client, req *grab.Request, 
 
 	resp := client.Do(req)
 	e.activeDownloads.Store(id, resp)
+
+	// Track bytes for stats - we'll track delta between ticks
+	var lastBytesCompleted int64 = 0
 	defer e.activeDownloads.Delete(id)
 
 	// Update Filename if grab resolved a better one (e.g. from Content-Disposition)
@@ -137,6 +211,14 @@ Loop:
 				e.logger.Error("Failed to save task state", "id", id, "error", err)
 			}
 
+			// Track bytes downloaded for lifetime stats (debounced every 2 seconds)
+			currentBytes := resp.BytesComplete()
+			deltaBytes := currentBytes - lastBytesCompleted
+			if deltaBytes > 0 {
+				e.stats.TrackDownloadBytes(deltaBytes)
+				lastBytesCompleted = currentBytes
+			}
+
 		case <-resp.Done:
 			// Channel closed when download finishes or cancels
 			break Loop
@@ -159,6 +241,13 @@ Loop:
 		task.Status = "completed"
 		task.Progress = 100
 		e.logger.Info("Download Completed", "id", id, "path", resp.Filename)
+
+		// Track any remaining bytes not captured by the ticker
+		finalBytes := resp.BytesComplete()
+		deltaBytes := finalBytes - lastBytesCompleted
+		if deltaBytes > 0 {
+			e.stats.TrackDownloadBytes(deltaBytes)
+		}
 
 		if e.ctx != nil {
 			runtime.EventsEmit(e.ctx, "download:completed", map[string]interface{}{

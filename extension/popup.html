@@ -1,28 +1,182 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <style>
-    body { width: 300px; padding: 15px; font-family: sans-serif; background: #1a1a1a; color: #eee; }
-    h2 { margin-top: 0; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 10px; }
-    input { width: 100%; padding: 8px; margin-bottom: 10px; background: #333; border: 1px solid #444; color: #fff; box-sizing: border-box; }
-    label { font-size: 12px; color: #aaa; }
-    button { width: 100%; padding: 10px; background: #2563eb; color: white; border: none; cursor: pointer; font-weight: bold; }
-    button:hover { background: #1d4ed8; }
-    #status { margin-top: 10px; font-size: 12px; text-align: center; height: 16px; }
+    body {
+      width: 320px;
+      padding: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: #111;
+      color: #eee;
+      margin: 0;
+    }
+
+    .header {
+      padding: 15px;
+      background: #1a1a1a;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #333;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .tabs {
+      display: flex;
+      background: #222;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 12px;
+      background: transparent;
+      color: #888;
+      border: none;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+    }
+
+    .tab-btn.active {
+      color: #3b82f6;
+      border-bottom-color: #3b82f6;
+      background: #1a1a1a;
+    }
+
+    .tab-content {
+      padding: 20px;
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    label {
+      display: block;
+      font-size: 11px;
+      color: #888;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 15px;
+      background: #222;
+      border: 1px solid #333;
+      color: #fff;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+
+    input:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .toggle-row {
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 15px;
+    }
+
+    .separator {
+      height: 1px;
+      background: #333;
+      margin: 0 20px 15px;
+    }
+
+    button#saveBtn {
+      width: calc(100% - 40px);
+      margin: 0 20px 20px;
+      padding: 12px;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+
+    button#saveBtn:hover {
+      background: #2563eb;
+    }
+
+    #statusMsg {
+      text-align: center;
+      color: #888;
+      font-size: 12px;
+      padding-bottom: 15px;
+      height: 15px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background: #555;
+      border-radius: 50%;
+    }
+
+    .status-dot.connected {
+      background: #22c55e;
+      box-shadow: 0 0 8px #22c55e;
+    }
+
+    .info {
+      font-size: 13px;
+      color: #aaa;
+      margin-top: 0;
+    }
   </style>
 </head>
+
 <body>
-  <h2>Tachyon Settings</h2>
-  
-  <label for="serverUrl">Server URL</label>
-  <input type="text" id="serverUrl" placeholder="http://localhost:45000" value="http://localhost:45000">
+  <div class="header">
+    <h2>Tachyon Connector</h2>
+    <div id="statusIcon" class="status-dot"></div>
+  </div>
 
-  <label for="apiToken">API Token</label>
-  <input type="password" id="apiToken" placeholder="Token" value="tachyon-dev-token">
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="local">Local</button>
+    <button class="tab-btn" data-tab="remote">Remote</button>
+  </div>
 
-  <button id="saveBtn">Save & Test</button>
-  <div id="status"></div>
+  <div id="local" class="tab-content active">
+    <p class="info">Connecting to local instance.</p>
+    <input type="text" id="localUrl" placeholder="http://localhost:45000" value="http://localhost:45000" disabled>
+  </div>
+
+  <div id="remote" class="tab-content">
+    <label>Server IP</label>
+    <input type="text" id="remoteUrl" placeholder="http://192.168.1.X:45000">
+
+    <label>API Token</label>
+    <input type="password" id="apiToken" placeholder="Paste Token from Settings">
+  </div>
+
+  <div class="separator"></div>
+
+  <div class="toggle-row">
+    <label for="autoGrab">Enable Media Sniffer</label>
+    <input type="checkbox" id="autoGrab">
+  </div>
+
+  <button id="saveBtn">Save & Connect</button>
+  <div id="statusMsg"></div>
 
   <script src="popup.js"></script>
 </body>
+
 </html>

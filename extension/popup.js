@@ -1,30 +1,50 @@
 document.addEventListener('DOMContentLoaded', restoreOptions);
 document.getElementById('saveBtn').addEventListener('click', saveOptions);
 
+// Tabs Logic
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+        btn.classList.add('active');
+        document.getElementById(btn.dataset.tab).classList.add('active');
+    });
+});
+
 function saveOptions() {
-    const serverUrl = document.getElementById('serverUrl').value;
+    const mode = document.querySelector('.tab-btn.active').dataset.tab; // 'local' or 'remote'
+    const remoteUrl = document.getElementById('remoteUrl').value;
     const apiToken = document.getElementById('apiToken').value;
+    const autoGrab = document.getElementById('autoGrab').checked;
 
-    chrome.storage.local.set({ serverUrl, apiToken }, () => {
-        // Test Connection
-        const status = document.getElementById('status');
-        status.textContent = 'Testing connection...';
+    const config = {
+        mode,
+        remoteUrl: remoteUrl || "http://localhost:45000",
+        apiToken,
+        autoGrab
+    };
 
-        // We can't actually hit the API from popup easily due to CORS in some contexts, 
-        // but background script does it. Popup usually has host permissions too.
-        // Let's try a simple fetch (OPTIONS or POST with empty body might fail validation but prove connection)
-        // Actually, let's just assume saved for now or try a lightweight check.
+    chrome.storage.local.set(config, () => {
+        document.getElementById('statusMsg').textContent = 'Settings Saved';
+        setTimeout(() => document.getElementById('statusMsg').textContent = '', 2000);
 
-        status.textContent = 'Settings Saved!';
-        setTimeout(() => {
-            status.textContent = '';
-        }, 1500);
+        // Notify Background to reload config
+        // chrome.runtime.sendMessage({ type: "CONFIG_UPDATED" });
     });
 }
 
 function restoreOptions() {
-    chrome.storage.local.get(['serverUrl', 'apiToken'], (items) => {
-        if (items.serverUrl) document.getElementById('serverUrl').value = items.serverUrl;
+    chrome.storage.local.get(['mode', 'remoteUrl', 'apiToken', 'autoGrab'], (items) => {
+        // Mode
+        if (items.mode === 'remote') {
+            document.querySelector('[data-tab="remote"]').click();
+        } else {
+            document.querySelector('[data-tab="local"]').click();
+        }
+
+        if (items.remoteUrl) document.getElementById('remoteUrl').value = items.remoteUrl;
         if (items.apiToken) document.getElementById('apiToken').value = items.apiToken;
+        document.getElementById('autoGrab').checked = items.autoGrab !== false; // Default true
     });
 }

@@ -93,15 +93,62 @@ func (a *App) GetTasks() []storage.Task {
 	return tasks
 }
 
-// OpenFolder opens the folder containing the file
-func (a *App) OpenFolder(path string) {
-	if path == "" {
+// OpenFolder opens the file explorer with the file selected
+func (a *App) OpenFolder(id string) {
+	// Lookup path from DB
+	// Using simple loop for now or Engine.GetTask if exposed.
+	// Let's assume we fetch all or ask Engine.
+
+	// Better: Helper on Engine/Storage to get one
+	task, err := a.engine.GetTask(id)
+	if err != nil {
+		a.logger.Error("Task not found for OpenFolder", "id", id, "error", err)
 		return
 	}
-	dir := filepath.Dir(path)
-	// Wails doesn't have a cross-platform "BrowserOpenFolder" yet, but we can try BrowserOpenURL with file://
-	// Or runtime.BrowserOpenURL(dir) might work on some OSs.
-	// Better to use Go's exec.Command("explorer", dir) on Windows.
-	// For now, let's use Wails BrowserOpenURL which opens default handler.
-	runtime.BrowserOpenURL(a.ctx, dir)
+
+	if task.Path == "" {
+		return
+	}
+
+	// Use OS Utils
+	if err := core.OpenFolder(task.Path); err != nil {
+		a.logger.Error("Failed to open folder", "path", task.Path, "error", err)
+	}
+}
+
+func (a *App) OpenFile(id string) {
+	task, err := a.engine.GetTask(id)
+	if err != nil {
+		a.logger.Error("Task not found for OpenFile", "id", id, "error", err)
+		return
+	}
+
+	if task.Path == "" {
+		return
+	}
+
+	if err := core.OpenFile(task.Path); err != nil {
+		a.logger.Error("Failed to open file", "path", task.Path, "error", err)
+	}
+}
+
+func (a *App) UpdateSettings(jsonSettings string) {
+	a.logger.Info("UpdateSettings called", "settings", jsonSettings)
+	// TODO: Parse and save to DB
+}
+
+func (a *App) RunNetworkSpeedTest() *core.SpeedTestResult {
+	res, err := core.RunSpeedTest()
+	if err != nil {
+		a.logger.Error("Speed test failed", "error", err)
+		return nil
+	}
+	return res
+}
+
+func (a *App) GetLifetimeStats() int64 {
+	// Assuming Engine has StatsManager or App holds it
+	// I need to add StatsManager to Engine or App.
+	// Let's add it to Engine for encapsulation.
+	return 0 // Placeholder until Engine update
 }

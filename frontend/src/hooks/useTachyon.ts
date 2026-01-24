@@ -117,15 +117,38 @@ export function useTachyon() {
         }
     };
 
-    const openFolder = async (path: string) => {
-        if (App && App.OpenFolder && path) {
-            await App.OpenFolder(path);
+    const openFolder = async (id: string) => {
+        if (App && App.OpenFolder) {
+            await App.OpenFolder(id);
         }
     };
+
+    const openFile = async (id: string) => {
+        if (App && App.OpenFile) {
+            await App.OpenFile(id);
+        }
+    };
+
+    const runSpeedTest = async () => {
+        if (App && App.RunNetworkSpeedTest) {
+            return await App.RunNetworkSpeedTest();
+        }
+        return null;
+    }
+
+    const getLifetimeStats = async () => {
+        if (App && App.GetLifetimeStats) {
+            return await App.GetLifetimeStats();
+        }
+        return 0;
+    }
 
     return {
         downloads,
         addDownload,
-        openFolder
+        openFolder,
+        openFile,
+        runSpeedTest,
+        getLifetimeStats
     };
 }

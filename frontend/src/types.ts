@@ -9,5 +9,6 @@ export type DownloadItem = {
     status: "downloading" | "paused" | "completed" | "error";
     error?: string;
     path?: string;
-    created_at: string; // Added
+    priority?: number; // 0=Low, 1=Normal, 2=High
+    created_at?: string; // Added
 };

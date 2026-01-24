@@ -1,6 +1,6 @@
 import React from "react";
-import { LayoutDashboard, Download, CheckCircle, List } from "lucide-react";
-import clsx from "clsx";
+import { LayoutGrid, Download, CheckCircle, List, Activity, Settings, Clock, HardDrive } from "lucide-react";
+import { cn } from "../utils";
 
 type SidebarProps = {
   activeTab: string;
@@ -9,39 +9,56 @@ type SidebarProps = {
 
 export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
   const menuItems = [
-    { id: "all", label: "All Downloads", icon: LayoutDashboard },
-    { id: "downloading", label: "Downloading", icon: Download },
-    { id: "completed", label: "Completed", icon: CheckCircle },
-    { id: "queued", label: "Queued", icon: List },
+    { id: "all", label: "Dashboard", icon: LayoutGrid },
+    { id: "downloading", label: "Active", icon: Download },
+    // { id: "completed", label: "Finished", icon: CheckCircle }, // Merged into Dashboard grid later? Keeping simple for now.
+    { id: "analytics", label: "Analytics", icon: Activity },
+    { id: "scheduler", label: "Scheduler", icon: Clock },
+    { id: "settings", label: "Settings", icon: Settings },
   ];
 
   return (
-    <div className="w-64 h-screen bg-gray-900 text-white flex flex-col border-r border-gray-800">
-      <div className="p-6">
-        <h1 className="text-2xl font-bold tracking-tight text-blue-500">Tachyon</h1>
+    <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col fixed top-0 bottom-0 left-0 z-50">
+      {/* Brand */}
+      <div className="h-16 flex items-center px-6 border-b border-slate-800">
+        <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-lg flex items-center justify-center mr-3 shadow-lg shadow-cyan-900/20">
+          <span className="font-bold text-white text-lg">T</span>
+        </div>
+        <h1 className="text-xl font-bold tracking-tight text-slate-100">Tachyon</h1>
       </div>
-      <nav className="flex-1 px-4 space-y-2">
+
+      {/* Nav */}
+      <nav className="flex-1 px-3 py-6 space-y-1">
         {menuItems.map((item) => (
           <button
             key={item.id}
             onClick={() => setActiveTab(item.id)}
-            className={clsx(
-              "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors",
-              activeTab === item.id
-                ? "bg-blue-600 text-white shadow-lg shadow-blue-900/50"
-                : "text-gray-400 hover:bg-gray-800 hover:text-white"
+            className={cn(
+              "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group",
+              activeTab === item.id || (activeTab === 'all' && item.id === 'dashboard') // Dashboard alias
+                ? "bg-slate-800 text-cyan-400 shadow-sm"
+                : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
             )}
           >
-            <item.icon size={20} />
+            <item.icon size={18} className={cn("transition-colors", activeTab === item.id ? "text-cyan-400" : "text-slate-500 group-hover:text-slate-300")} />
             {item.label}
+            {item.id === 'downloading' && (
+              <span className="ml-auto bg-blue-500/10 text-blue-400 text-xs py-0.5 px-2 rounded-full hidden">3</span>
+            )}
           </button>
         ))}
       </nav>
-      <div className="p-4 border-t border-gray-800">
-        <div className="text-xs text-gray-500 text-center">
-          v0.1.0-alpha
+
+      {/* Disk Usage */}
+      <div className="p-6 border-t border-slate-800 bg-slate-900/50">
+        <div className="flex justify-between text-xs text-slate-400 mb-2">
+          <span>Disk Usage</span>
+          <span className="text-slate-200">120GB Free</span>
+        </div>
+        <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+          <div className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 w-[65%] rounded-full"></div>
         </div>
       </div>
-    </div>
+    </aside>
   );
 }

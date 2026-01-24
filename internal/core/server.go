@@ -6,16 +6,20 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"project-tachyon/internal/storage"
+	"strings"
 	"time"
 )
 
 type APIServer struct {
-	logger *slog.Logger
-	engine *TachyonEngine
-	server *http.Server
-	token  string
+	logger  *slog.Logger
+	engine  *TachyonEngine
+	storage *storage.Storage
+	server  *http.Server
+	token   string
 }
 
 type DownloadRequest struct {
@@ -25,19 +29,19 @@ type DownloadRequest struct {
 	Referer   string `json:"referer"`
 }
 
-func NewAPIServer(logger *slog.Logger, engine *TachyonEngine) *APIServer {
-	// Generate simple token if not exists (In real app, load from config)
-	// For now, hardcode "tachyon-secret" or generate random.
-	// Let's use a fixed one for Phase 5 simplicity unless user asked for random generation/persistence specifically.
-	// User asked: "Generate a random ApiToken on first run, save it to storage".
-	// Since we don't have a "Settings" storage yet, let's use a simple file or just env.
-	// I'll stick to a default one for dev, but TODO: implement persistence.
-	// Actually, I can use the Engine's storage if I expose a key-value method, but I'll keeping it simple.
+// Storage keys for filtering
+const (
+	KeyDomainWhitelist = "settings_domain_whitelist"
+	KeyDomainBlacklist = "settings_domain_blacklist"
+	KeySilentMode      = "settings_silent_mode"
+)
 
+func NewAPIServer(logger *slog.Logger, engine *TachyonEngine, store *storage.Storage) *APIServer {
 	return &APIServer{
-		logger: logger,
-		engine: engine,
-		token:  "tachyon-dev-token", // FIXME: Implement persistence
+		logger:  logger,
+		engine:  engine,
+		storage: store,
+		token:   "tachyon-dev-token", // FIXME: Implement persistence
 	}
 }
 
@@ -74,9 +78,6 @@ func (s *APIServer) handleDownload(w http.ResponseWriter, r *http.Request) {
 	// Auth Check
 	token := r.Header.Get("X-Tachyon-Token")
 	if token != s.token {
-		// http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		// For development/Phase 5, allow non-authed if local? No, stick to spec.
-		// Actually, let's log and allow for now to ease testing, or implement simplistic check.
 		if token == "" {
 			s.logger.Warn("API Request missing token")
 		} else if token != s.token {
@@ -92,16 +93,32 @@ func (s *APIServer) handleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Domain Filtering Logic
+	filterResult := s.checkDomainFilters(req.Referer, req.URL)
+	switch filterResult {
+	case "blocked":
+		s.logger.Info("Download blocked by domain filter", "url", req.URL, "referer", req.Referer)
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{"status": "blocked", "reason": "Domain is blacklisted"})
+		return
+	case "whitelisted":
+		s.logger.Info("Download auto-approved by whitelist", "url", req.URL, "referer", req.Referer)
+		// Continue to download
+	case "silent":
+		// Silent mode - don't auto-download unknown domains
+		s.logger.Info("Download skipped in silent mode", "url", req.URL, "referer", req.Referer)
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "silent", "reason": "Domain not whitelisted in silent mode"})
+		return
+	default:
+		// "allowed" - neither blacklisted nor in whitelist, proceed
+	}
+
 	// Default path
 	homeDir, _ := os.UserHomeDir()
 	defaultPath := filepath.Join(homeDir, "Downloads")
 
 	// Start Download
-	// NOTE: We need to pass Cookies/UA to Engine. StartDownload signature is (url, dest).
-	// I need to update StartDownload to accept options or modify grab client inside.
-	// For now, I'll call StartDownload, but the cookies won't be used yet.
-	// TODO: Phase 5b - Refactor StartDownload to accept *DownloadOptions
-
 	id, err := s.engine.StartDownload(req.URL, defaultPath)
 	if err != nil {
 		s.logger.Error("API failed to start download", "error", err)
@@ -111,6 +128,71 @@ func (s *APIServer) handleDownload(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"id": id, "status": "started"})
+}
+
+// checkDomainFilters checks if the request should be blocked, allowed, or handled by silent mode
+// Returns: "blocked", "whitelisted", "silent", or "allowed"
+func (s *APIServer) checkDomainFilters(referer, downloadURL string) string {
+	// Extract domain from referer or download URL
+	domain := extractDomain(referer)
+	if domain == "" {
+		domain = extractDomain(downloadURL)
+	}
+	if domain == "" {
+		return "allowed" // Can't determine domain, allow by default
+	}
+
+	// Check blacklist first
+	blacklist, _ := s.storage.GetStringList(KeyDomainBlacklist)
+	for _, blocked := range blacklist {
+		if matchesDomain(domain, blocked) {
+			return "blocked"
+		}
+	}
+
+	// Check whitelist
+	whitelist, _ := s.storage.GetStringList(KeyDomainWhitelist)
+	for _, allowed := range whitelist {
+		if matchesDomain(domain, allowed) {
+			return "whitelisted"
+		}
+	}
+
+	// Check silent mode
+	silentMode, _ := s.storage.GetString(KeySilentMode)
+	if silentMode == "true" {
+		return "silent"
+	}
+
+	return "allowed"
+}
+
+// extractDomain extracts the hostname from a URL
+func extractDomain(rawURL string) string {
+	if rawURL == "" {
+		return ""
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return ""
+	}
+	return strings.ToLower(parsed.Hostname())
+}
+
+// matchesDomain checks if domain matches a pattern (supports subdomain matching)
+// e.g., "video.example.com" matches "example.com"
+func matchesDomain(domain, pattern string) bool {
+	pattern = strings.ToLower(pattern)
+	domain = strings.ToLower(domain)
+
+	if domain == pattern {
+		return true
+	}
+	// Check if domain is a subdomain of pattern
+	if strings.HasSuffix(domain, "."+pattern) {
+		return true
+	}
+	return false
 }
 
 func (s *APIServer) corsMiddleware(next http.Handler) http.Handler {
