@@ -2,27 +2,62 @@ package core
 
 import (
 	"project-tachyon/internal/storage"
+	"strings"
 	"testing"
 )
 
 func TestStatsManager(t *testing.T) {
-	// Setup DB
 	s, err := storage.NewStorage()
 	if err != nil {
+		if strings.Contains(err.Error(), "lock") || strings.Contains(err.Error(), "LOCK") {
+			t.Skip("Skipping test - database locked (app running)")
+		}
 		t.Fatalf("Failed to init storage: %v", err)
 	}
-	// Note: using default storage path might conflict if app is running or use persisted data.
-	// Ideally we use a temporary directory for DB testing.
-	// But `storage.NewStorage` hardcodes path.
-	// For this test, we might skip actual DB writes or refactor Storage to accept path.
+	defer s.Close()
 
-	// Refactoring storage.NewStorage is risky mid-flight.
-	// I'll skip DB integration test here and focus on logic if I could Mock it.
-	// But `StatsManager` depends on `*storage.Storage` struct directly.
+	sm := NewStatsManager(s)
+	if sm == nil {
+		t.Fatal("NewStatsManager returned nil")
+	}
 
-	// Let's assume StatsManager logic is simple delegation. I will verify it compiles.
-	// Real test requires DB.
+	// Test TrackDownloadBytes (fire and forget, no error)
+	sm.TrackDownloadBytes(1024)
 
-	// Changing plan: I will just verify the methods exist and are callable.
-	_ = NewStatsManager(s)
+	// Test TrackFileCompleted
+	sm.TrackFileCompleted()
+
+	// Test GetLifetimeStats
+	_, err = sm.GetLifetimeStats()
+	if err != nil {
+		t.Errorf("GetLifetimeStats returned error: %v", err)
+	}
+
+	// Test GetTotalFiles
+	_, err = sm.GetTotalFiles()
+	if err != nil {
+		t.Errorf("GetTotalFiles returned error: %v", err)
+	}
+
+	// Test GetDailyStats
+	daily, err := sm.GetDailyStats(7)
+	if err != nil {
+		t.Errorf("GetDailyStats returned error: %v", err)
+	}
+	if len(daily) != 7 {
+		t.Errorf("Expected 7 days of stats, got %d", len(daily))
+	}
+
+	// Test GetDiskUsage
+	usage := sm.GetDiskUsage()
+	if usage.Percent < 0 || usage.Percent > 100 {
+		t.Errorf("Disk usage percent out of range: %f", usage.Percent)
+	}
+	t.Logf("Disk Usage: %.2f GB used of %.2f GB total (%.1f%%)", usage.UsedGB, usage.TotalGB, usage.Percent)
+
+	// Test GetAnalytics
+	analytics := sm.GetAnalytics()
+	if len(analytics.DailyHistory) != 7 {
+		t.Errorf("Expected 7 days of history, got %d", len(analytics.DailyHistory))
+	}
 }

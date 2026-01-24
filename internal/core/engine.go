@@ -48,6 +48,11 @@ func (e *TachyonEngine) GetTask(id string) (storage.Task, error) {
 	return e.storage.GetTask(id)
 }
 
+// GetStats returns the stats manager for analytics
+func (e *TachyonEngine) GetStats() *StatsManager {
+	return e.stats
+}
+
 func (e *TachyonEngine) SetMaxConcurrent(n int) {
 	if n < 1 {
 		return
@@ -248,6 +253,9 @@ Loop:
 		if deltaBytes > 0 {
 			e.stats.TrackDownloadBytes(deltaBytes)
 		}
+
+		// Track completed file for analytics
+		e.stats.TrackFileCompleted()
 
 		if e.ctx != nil {
 			runtime.EventsEmit(e.ctx, "download:completed", map[string]interface{}{

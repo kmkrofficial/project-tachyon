@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"project-tachyon/internal/core"
 	"project-tachyon/internal/storage"
 
@@ -66,11 +64,10 @@ func (a *App) ShowApp() {
 func (a *App) AddDownload(url string) string {
 	a.logger.Info("frontend_request", "method", "AddDownload", "url", url)
 
-	// Use User Home / Downloads as default
-	homeDir, err := os.UserHomeDir()
-	defaultPath := filepath.Join(homeDir, "Downloads")
+	// Use Tachyon Downloads folder (auto-created with subfolders)
+	defaultPath, err := core.GetDefaultDownloadPath()
 	if err != nil {
-		a.logger.Error("Failed to get home dir", "error", err)
+		a.logger.Error("Failed to get default download path", "error", err)
 		return "ERROR: " + err.Error()
 	}
 
@@ -147,8 +144,28 @@ func (a *App) RunNetworkSpeedTest() *core.SpeedTestResult {
 }
 
 func (a *App) GetLifetimeStats() int64 {
-	// Assuming Engine has StatsManager or App holds it
-	// I need to add StatsManager to Engine or App.
-	// Let's add it to Engine for encapsulation.
-	return 0 // Placeholder until Engine update
+	stats := a.engine.GetStats()
+	if stats == nil {
+		return 0
+	}
+	lifetime, _ := stats.GetLifetimeStats()
+	return lifetime
+}
+
+// GetAnalytics returns comprehensive analytics data including disk usage
+func (a *App) GetAnalytics() core.AnalyticsData {
+	stats := a.engine.GetStats()
+	if stats == nil {
+		return core.AnalyticsData{}
+	}
+	return stats.GetAnalytics()
+}
+
+// GetDiskUsage returns disk space info for the download drive
+func (a *App) GetDiskUsage() core.DiskUsageInfo {
+	stats := a.engine.GetStats()
+	if stats == nil {
+		return core.DiskUsageInfo{}
+	}
+	return stats.GetDiskUsage()
 }

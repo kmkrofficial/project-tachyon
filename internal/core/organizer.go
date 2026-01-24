@@ -3,48 +3,49 @@ package core
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
-type Category string
-
+// Category constants for file organization
 const (
-	CategoryVideo    Category = "Video"
-	CategoryMusic    Category = "Music"
-	CategoryImage    Category = "Images"
-	CategoryArchives Category = "Archives"
-	CategoryDocs     Category = "Documents"
-	CategoryPrograms Category = "Programs"
-	CategoryOther    Category = "Others"
+	CategoryVideo     = "Videos"
+	CategoryMusic     = "Music"
+	CategoryImages    = "Images"
+	CategoryArchives  = "Archives"
+	CategoryDocuments = "Documents"
+	CategorySoftware  = "Software"
+	CategoryOthers    = "Others"
 )
 
-var (
-	extMap = map[string]Category{
-		// Video
-		".mp4": CategoryVideo, ".mkv": CategoryVideo, ".webm": CategoryVideo, ".avi": CategoryVideo, ".mov": CategoryVideo,
-		// Music
-		".mp3": CategoryMusic, ".wav": CategoryMusic, ".flac": CategoryMusic, ".aac": CategoryMusic,
-		// Images
-		".jpg": CategoryImage, ".jpeg": CategoryImage, ".png": CategoryImage, ".gif": CategoryImage, ".webp": CategoryImage,
-		// Archives
-		".zip": CategoryArchives, ".rar": CategoryArchives, ".7z": CategoryArchives, ".tar": CategoryArchives, ".gz": CategoryArchives,
-		// Docs
-		".pdf": CategoryDocs, ".doc": CategoryDocs, ".docx": CategoryDocs, ".xls": CategoryDocs, ".xlsx": CategoryDocs, ".txt": CategoryDocs,
-		// Programs
-		".exe": CategoryPrograms, ".msi": CategoryPrograms, ".dmg": CategoryPrograms, ".deb": CategoryPrograms,
-	}
-	// Correcting typo in map definition during writing: using literal strings or updating consts
-	// I will use string literals or fix the const names below
-)
+// TachyonRootFolder is the main download folder name
+const TachyonRootFolder = "Tachyon Downloads"
 
-// Re-defining properly locally to ensure compilation
+// Extension to category mapping
 var extensionCategories = map[string]string{
-	".mp4": "Video", ".mkv": "Video", ".webm": "Video", ".avi": "Video", ".mov": "Video",
-	".mp3": "Music", ".wav": "Music", ".flac": "Music", ".aac": "Music",
-	".jpg": "Images", ".jpeg": "Images", ".png": "Images", ".gif": "Images", ".webp": "Images",
-	".zip": "Archives", ".rar": "Archives", ".7z": "Archives", ".tar": "Archives", ".gz": "Archives",
-	".pdf": "Documents", ".doc": "Documents", ".docx": "Documents", ".txt": "Documents",
-	".exe": "Programs", ".msi": "Programs", ".dmg": "Programs", ".deb": "Programs",
+	// Video
+	".mp4": CategoryVideo, ".mkv": CategoryVideo, ".webm": CategoryVideo,
+	".avi": CategoryVideo, ".mov": CategoryVideo, ".wmv": CategoryVideo,
+	".flv": CategoryVideo, ".m4v": CategoryVideo,
+	// Music
+	".mp3": CategoryMusic, ".wav": CategoryMusic, ".flac": CategoryMusic,
+	".aac": CategoryMusic, ".ogg": CategoryMusic, ".m4a": CategoryMusic,
+	// Images
+	".jpg": CategoryImages, ".jpeg": CategoryImages, ".png": CategoryImages,
+	".gif": CategoryImages, ".webp": CategoryImages, ".bmp": CategoryImages,
+	".svg": CategoryImages, ".ico": CategoryImages,
+	// Archives
+	".zip": CategoryArchives, ".rar": CategoryArchives, ".7z": CategoryArchives,
+	".tar": CategoryArchives, ".gz": CategoryArchives, ".bz2": CategoryArchives,
+	// Documents
+	".pdf": CategoryDocuments, ".doc": CategoryDocuments, ".docx": CategoryDocuments,
+	".xls": CategoryDocuments, ".xlsx": CategoryDocuments, ".ppt": CategoryDocuments,
+	".pptx": CategoryDocuments, ".txt": CategoryDocuments, ".rtf": CategoryDocuments,
+	".odt": CategoryDocuments, ".ods": CategoryDocuments,
+	// Software
+	".exe": CategorySoftware, ".msi": CategorySoftware, ".dmg": CategorySoftware,
+	".deb": CategorySoftware, ".rpm": CategorySoftware, ".pkg": CategorySoftware,
+	".appimage": CategorySoftware, ".apk": CategorySoftware,
 }
 
 // GetCategory returns the category based on file extension
@@ -53,18 +54,81 @@ func GetCategory(filename string) string {
 	if cat, ok := extensionCategories[ext]; ok {
 		return cat
 	}
-	return "Others"
+	return CategoryOthers
 }
 
-// GetOrganizedPath returns the full path including category folder
+// GetDefaultDownloadPath returns the default Tachyon Downloads path
+// Cross-platform: ~/Downloads/Tachyon Downloads/
+func GetDefaultDownloadPath() (string, error) {
+	var downloadsDir string
+
+	switch runtime.GOOS {
+	case "windows":
+		// Windows: Use USERPROFILE\Downloads
+		userProfile := os.Getenv("USERPROFILE")
+		if userProfile == "" {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return "", err
+			}
+			userProfile = home
+		}
+		downloadsDir = filepath.Join(userProfile, "Downloads")
+	case "darwin":
+		// macOS: Use ~/Downloads
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		downloadsDir = filepath.Join(home, "Downloads")
+	default:
+		// Linux/Other: Check XDG_DOWNLOAD_DIR or fallback to ~/Downloads
+		xdgDownload := os.Getenv("XDG_DOWNLOAD_DIR")
+		if xdgDownload != "" {
+			downloadsDir = xdgDownload
+		} else {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return "", err
+			}
+			downloadsDir = filepath.Join(home, "Downloads")
+		}
+	}
+
+	// Create Tachyon root folder
+	tachyonRoot := filepath.Join(downloadsDir, TachyonRootFolder)
+	if err := os.MkdirAll(tachyonRoot, 0755); err != nil {
+		return "", err
+	}
+
+	return tachyonRoot, nil
+}
+
+// GetOrganizedPath returns the full path including category subfolder
+// baseDir should be the Tachyon root or a custom location
 func GetOrganizedPath(baseDir, filename string) (string, error) {
 	category := GetCategory(filename)
 	categoryPath := filepath.Join(baseDir, category)
 
-	// Create Category Folder if not exists
+	// Create category subfolder if not exists
 	if err := os.MkdirAll(categoryPath, 0755); err != nil {
 		return "", err
 	}
 
 	return filepath.Join(categoryPath, filename), nil
+}
+
+// EnsureCategoryFolders pre-creates all category subfolders
+func EnsureCategoryFolders(baseDir string) error {
+	categories := []string{
+		CategoryVideo, CategoryMusic, CategoryImages,
+		CategoryArchives, CategoryDocuments, CategorySoftware, CategoryOthers,
+	}
+	for _, cat := range categories {
+		path := filepath.Join(baseDir, cat)
+		if err := os.MkdirAll(path, 0755); err != nil {
+			return err
+		}
+	}
+	return nil
 }
