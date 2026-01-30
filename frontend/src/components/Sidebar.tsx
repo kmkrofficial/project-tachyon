@@ -1,19 +1,21 @@
 import React from "react";
-import { LayoutGrid, Download, CheckCircle, List, Activity, Settings, Clock, HardDrive } from "lucide-react";
+import { LayoutGrid, Download, CheckCircle, List, Activity, Settings, Clock, HardDrive, Zap } from "lucide-react";
 import { cn } from "../utils";
 
 type SidebarProps = {
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  diskUsage?: { free_gb: number, percent: number };
 };
 
-export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
+export function Sidebar({ activeTab, setActiveTab, diskUsage = { free_gb: 0, percent: 0 } }: SidebarProps) {
   const menuItems = [
     { id: "all", label: "Dashboard", icon: LayoutGrid },
     { id: "downloading", label: "Active", icon: Download },
-    // { id: "completed", label: "Finished", icon: CheckCircle }, // Merged into Dashboard grid later? Keeping simple for now.
+    // { id: "completed", label: "Finished", icon: CheckCircle },
     { id: "analytics", label: "Analytics", icon: Activity },
     { id: "scheduler", label: "Scheduler", icon: Clock },
+    { id: "speedtest", label: "Speed Test", icon: Zap },
     { id: "settings", label: "Settings", icon: Settings },
   ];
 
@@ -35,16 +37,13 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
             onClick={() => setActiveTab(item.id)}
             className={cn(
               "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group",
-              activeTab === item.id || (activeTab === 'all' && item.id === 'dashboard') // Dashboard alias
+              activeTab === item.id || (activeTab === 'all' && item.id === 'dashboard')
                 ? "bg-slate-800 text-cyan-400 shadow-sm"
                 : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
             )}
           >
             <item.icon size={18} className={cn("transition-colors", activeTab === item.id ? "text-cyan-400" : "text-slate-500 group-hover:text-slate-300")} />
             {item.label}
-            {item.id === 'downloading' && (
-              <span className="ml-auto bg-blue-500/10 text-blue-400 text-xs py-0.5 px-2 rounded-full hidden">3</span>
-            )}
           </button>
         ))}
       </nav>
@@ -53,10 +52,13 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
       <div className="p-6 border-t border-slate-800 bg-slate-900/50">
         <div className="flex justify-between text-xs text-slate-400 mb-2">
           <span>Disk Usage</span>
-          <span className="text-slate-200">120GB Free</span>
+          <span className="text-slate-200">{diskUsage.free_gb.toFixed(0)}GB Free</span>
         </div>
         <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-          <div className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 w-[65%] rounded-full"></div>
+          <div
+            className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full transition-all duration-500"
+            style={{ width: `${diskUsage.percent}%` }}
+          ></div>
         </div>
       </div>
     </aside>

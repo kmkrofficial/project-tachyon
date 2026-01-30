@@ -14,7 +14,7 @@ import (
 
 // Storage handles all database operations using SQLite
 type Storage struct {
-	db *gorm.DB
+	DB *gorm.DB
 }
 
 // NewStorage initializes the SQLite database connection
@@ -51,49 +51,64 @@ func NewStorage() (*Storage, error) {
 		&DownloadLocation{},
 		&DailyStat{},
 		&AppSetting{},
+		&SpeedTestHistory{},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
 
-	return &Storage{db: db}, nil
+	return &Storage{DB: db}, nil
 }
 
 // Close closes the database connection
 func (s *Storage) Close() error {
-	sqlDB, err := s.db.DB()
+	sqlDB, err := s.DB.DB()
 	if err != nil {
 		return err
 	}
 	return sqlDB.Close()
 }
 
+// Checkpoint forces a WAL checkpoint to ensure durability
+func (s *Storage) Checkpoint() error {
+	return s.DB.Exec("PRAGMA wal_checkpoint(TRUNCATE);").Error
+}
+
 // ============= Task Management =============
 
 // SaveTask creates or updates a download task (upsert)
 func (s *Storage) SaveTask(task DownloadTask) error {
-	task.UpdatedAt = time.Now()
-	return s.db.Save(&task).Error
+	task.UpdatedAt = time.Now().Format(time.RFC3339)
+	return s.DB.Save(&task).Error
 }
 
 // GetTask retrieves a specific task by ID
 func (s *Storage) GetTask(id string) (DownloadTask, error) {
 	var task DownloadTask
-	err := s.db.First(&task, "id = ?", id).Error
+	err := s.DB.First(&task, "id = ?", id).Error
+	return task, err
+}
+
+// GetTaskByURL retrieves a task by URL (to check history)
+func (s *Storage) GetTaskByURL(url string) (DownloadTask, error) {
+	var task DownloadTask
+	// We want the most recent one if duplicates exist?
+	err := s.DB.Where("url = ?", url).Order("created_at desc").First(&task).Error
 	return task, err
 }
 
 // GetAllTasks returns all non-deleted tasks, newest first
+// GetAllTasks returns all non-deleted tasks, newest first
 func (s *Storage) GetAllTasks() ([]DownloadTask, error) {
 	var tasks []DownloadTask
-	err := s.db.Order("created_at desc").Find(&tasks).Error
+	err := s.DB.Order("created_at desc").Find(&tasks).Error
 	return tasks, err
 }
 
 // GetTasksByStatus returns tasks filtered by status
 func (s *Storage) GetTasksByStatus(status string, limit int) ([]DownloadTask, error) {
 	var tasks []DownloadTask
-	query := s.db.Where("status = ?", status).Order("created_at desc")
+	query := s.DB.Where("status = ?", status).Order("created_at desc")
 	if limit > 0 {
 		query = query.Limit(limit)
 	}
@@ -104,7 +119,7 @@ func (s *Storage) GetTasksByStatus(status string, limit int) ([]DownloadTask, er
 // GetActiveTasks returns all downloading or pending tasks
 func (s *Storage) GetActiveTasks() ([]DownloadTask, error) {
 	var tasks []DownloadTask
-	err := s.db.Where("status IN ?", []string{"downloading", "pending"}).
+	err := s.DB.Where("status IN ?", []string{"downloading", "pending"}).
 		Order("priority desc, created_at asc").
 		Find(&tasks).Error
 	return tasks, err
@@ -112,17 +127,17 @@ func (s *Storage) GetActiveTasks() ([]DownloadTask, error) {
 
 // DeleteTask soft-deletes a task
 func (s *Storage) DeleteTask(id string) error {
-	return s.db.Delete(&DownloadTask{}, "id = ?", id).Error
+	return s.DB.Delete(&DownloadTask{}, "id = ?", id).Error
 }
 
 // UpdateTaskStatus updates just the status field
 func (s *Storage) UpdateTaskStatus(id, status string) error {
-	return s.db.Model(&DownloadTask{}).Where("id = ?", id).Update("status", status).Error
+	return s.DB.Model(&DownloadTask{}).Where("id = ?", id).Update("status", status).Error
 }
 
 // UpdateTaskProgress updates progress and speed for a task
 func (s *Storage) UpdateTaskProgress(id string, progress float64, downloaded int64, speed float64) error {
-	return s.db.Model(&DownloadTask{}).Where("id = ?", id).Updates(map[string]interface{}{
+	return s.DB.Model(&DownloadTask{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"progress":   progress,
 		"downloaded": downloaded,
 		"speed":      speed,
@@ -135,7 +150,7 @@ func (s *Storage) UpdateTaskProgress(id string, progress float64, downloaded int
 // AddLocation adds or updates a download location
 func (s *Storage) AddLocation(path, nickname string) error {
 	loc := DownloadLocation{Path: path, Nickname: nickname}
-	return s.db.Clauses(clause.OnConflict{
+	return s.DB.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "path"}},
 		DoUpdates: clause.AssignmentColumns([]string{"nickname"}),
 	}).Create(&loc).Error
@@ -144,13 +159,13 @@ func (s *Storage) AddLocation(path, nickname string) error {
 // GetLocations returns all saved download locations
 func (s *Storage) GetLocations() ([]DownloadLocation, error) {
 	var locations []DownloadLocation
-	err := s.db.Find(&locations).Error
+	err := s.DB.Find(&locations).Error
 	return locations, err
 }
 
 // DeleteLocation removes a download location
 func (s *Storage) DeleteLocation(path string) error {
-	return s.db.Delete(&DownloadLocation{}, "path = ?", path).Error
+	return s.DB.Delete(&DownloadLocation{}, "path = ?", path).Error
 }
 
 // ============= Statistics (SQL Analytics) =============
@@ -160,7 +175,7 @@ func (s *Storage) IncrementStat(key string, bytes int64) error {
 	today := time.Now().Format("2006-01-02")
 
 	// Use upsert with SQL increment
-	return s.db.Clauses(clause.OnConflict{
+	return s.DB.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "date"}},
 		DoUpdates: clause.Assignments(map[string]interface{}{
 			"bytes": gorm.Expr("bytes + ?", bytes),
@@ -171,7 +186,7 @@ func (s *Storage) IncrementStat(key string, bytes int64) error {
 // IncrementDailyBytes adds bytes to today's stats
 func (s *Storage) IncrementDailyBytes(bytes int64) error {
 	today := time.Now().Format("2006-01-02")
-	return s.db.Clauses(clause.OnConflict{
+	return s.DB.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "date"}},
 		DoUpdates: clause.Assignments(map[string]interface{}{
 			"bytes": gorm.Expr("bytes + ?", bytes),
@@ -182,7 +197,7 @@ func (s *Storage) IncrementDailyBytes(bytes int64) error {
 // IncrementDailyFiles adds a file count to today's stats
 func (s *Storage) IncrementDailyFiles() error {
 	today := time.Now().Format("2006-01-02")
-	return s.db.Clauses(clause.OnConflict{
+	return s.DB.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "date"}},
 		DoUpdates: clause.Assignments(map[string]interface{}{
 			"files": gorm.Expr("files + 1"),
@@ -193,21 +208,21 @@ func (s *Storage) IncrementDailyFiles() error {
 // GetTotalLifetime returns total bytes downloaded all-time using SQL SUM
 func (s *Storage) GetTotalLifetime() (int64, error) {
 	var total int64
-	err := s.db.Model(&DailyStat{}).Select("IFNULL(SUM(bytes), 0)").Row().Scan(&total)
+	err := s.DB.Model(&DailyStat{}).Select("IFNULL(SUM(bytes), 0)").Row().Scan(&total)
 	return total, err
 }
 
 // GetTotalFiles returns total files downloaded all-time using SQL SUM
 func (s *Storage) GetTotalFiles() (int64, error) {
 	var total int64
-	err := s.db.Model(&DailyStat{}).Select("IFNULL(SUM(files), 0)").Row().Scan(&total)
+	err := s.DB.Model(&DailyStat{}).Select("IFNULL(SUM(files), 0)").Row().Scan(&total)
 	return total, err
 }
 
 // GetDailyHistory returns the last N days of stats
 func (s *Storage) GetDailyHistory(days int) ([]DailyStat, error) {
 	var stats []DailyStat
-	err := s.db.Order("date desc").Limit(days).Find(&stats).Error
+	err := s.DB.Order("date desc").Limit(days).Find(&stats).Error
 	return stats, err
 }
 
@@ -228,7 +243,7 @@ func (s *Storage) GetStatInt(key string) (int64, error) {
 // GetString retrieves a string setting by key
 func (s *Storage) GetString(key string) (string, error) {
 	var setting AppSetting
-	err := s.db.First(&setting, "key = ?", key).Error
+	err := s.DB.First(&setting, "key = ?", key).Error
 	if err == gorm.ErrRecordNotFound {
 		return "", nil
 	}
@@ -237,7 +252,7 @@ func (s *Storage) GetString(key string) (string, error) {
 
 // SetString stores a string setting
 func (s *Storage) SetString(key, value string) error {
-	return s.db.Clauses(clause.OnConflict{
+	return s.DB.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "key"}},
 		DoUpdates: clause.AssignmentColumns([]string{"value"}),
 	}).Create(&AppSetting{Key: key, Value: value}).Error
@@ -292,4 +307,18 @@ func joinWithComma(list []string) string {
 		result += item
 	}
 	return result
+}
+
+// ============= Speed Test History =============
+
+// SaveSpeedTest saves a speed test result
+func (s *Storage) SaveSpeedTest(history SpeedTestHistory) error {
+	return s.DB.Create(&history).Error
+}
+
+// GetSpeedTestHistory returns the last N speed tests
+func (s *Storage) GetSpeedTestHistory(limit int) ([]SpeedTestHistory, error) {
+	var history []SpeedTestHistory
+	err := s.DB.Order("timestamp desc").Limit(limit).Find(&history).Error
+	return history, err
 }

@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
-import { X, Save, Clock, Wifi, Sliders } from 'lucide-react';
+import { X, Save, Clock, Wifi, Sliders, Shield } from 'lucide-react';
 import { useSettingsStore } from '../store';
 import { useTachyon } from '../hooks/useTachyon';
+
+import { GeneralSettings } from '../pages/Settings/General';
+import { SecurityLog } from '../pages/Settings/SecurityLog';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -10,29 +13,23 @@ interface SettingsModalProps {
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     const settings = useSettingsStore();
-    const { runSpeedTest } = useTachyon();
-    const [activeTab, setActiveTab] = useState<'general' | 'scheduler' | 'network'>('general');
-    const [speedResult, setSpeedResult] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState<'general' | 'scheduler' | 'network' | 'security'>('general');
 
     if (!isOpen) return null;
 
     const handleSave = () => {
+        // Apply settings to backend
+        if (window.go?.main?.App?.SetMaxConcurrentDownloads) {
+            window.go.main.App.SetMaxConcurrentDownloads(settings.maxConcurrentDownloads);
+        }
+        if (window.go?.main?.App?.SetThreadsPerDownload) {
+            // Assuming we have a backend method for this, otherwise it's just local
+            // window.go.main.App.SetThreadsPerDownload(settings.threadsPerDownload);
+        }
         onClose();
     };
 
-    const handleSpeedTest = async () => {
-        setSpeedResult("Testing...");
-        try {
-            const res = await runSpeedTest();
-            if (res) {
-                setSpeedResult(`${res.download_mbps.toFixed(1)} Mbps`);
-            } else {
-                setSpeedResult("Failed");
-            }
-        } catch {
-            setSpeedResult("Error");
-        }
-    };
+    // ...
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -70,38 +67,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                             active={activeTab === 'network'}
                             onClick={() => setActiveTab('network')}
                         />
+                        <TabButton
+                            id="security"
+                            label="Security"
+                            icon={Shield}
+                            active={activeTab === 'security'}
+                            onClick={() => setActiveTab('security')}
+                        />
                     </div>
 
                     {/* Content */}
                     <div className="flex-1 p-6 overflow-y-auto">
-                        {activeTab === 'general' && (
-                            <div className="space-y-6">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-2">Max Concurrent Downloads: {settings.maxConcurrentDownloads}</label>
-                                    <input
-                                        type="range" min="1" max="10"
-                                        value={settings.maxConcurrentDownloads}
-                                        onChange={(e) => settings.setMaxConcurrentDownloads(parseInt(e.target.value))}
-                                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-2">Threads per Download: {settings.threadsPerDownload}</label>
-                                    <input
-                                        type="range" min="1" max="32"
-                                        value={settings.threadsPerDownload}
-                                        onChange={(e) => settings.setThreadsPerDownload(parseInt(e.target.value))}
-                                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
-                                    />
-                                </div>
-                                <div className="flex items-center justify-between">
-                                    <span className="text-gray-300">File Categorization</span>
-                                    <div className="w-10 h-5 bg-blue-600 rounded-full cursor-pointer relative">
-                                        <div className="absolute right-1 top-1 w-3 h-3 bg-white rounded-full"></div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+                        {activeTab === 'general' && <GeneralSettings />}
 
                         {activeTab === 'scheduler' && (
                             <div className="space-y-6">
@@ -123,27 +100,35 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
                         {activeTab === 'network' && (
                             <div className="space-y-6">
-                                <div className="flex justify-between items-center bg-gray-800 p-4 rounded-lg">
-                                    <div>
-                                        <span className="block text-white font-medium">Speed Test</span>
-                                        <span className="text-xs text-gray-500">Check connection to servers</span>
-                                    </div>
-                                    <div className="flex items-center gap-4">
-                                        {speedResult && <span className="text-green-400 font-mono text-sm">{speedResult}</span>}
-                                        <button onClick={handleSpeedTest} className="px-3 py-1 bg-blue-600 rounded text-sm hover:bg-blue-500">Run</button>
-                                    </div>
-                                </div>
                                 <div className="bg-gray-800 p-4 rounded-lg">
-                                    <span className="block text-white font-medium mb-2">Remote Access</span>
-                                    <div className="flex gap-2">
-                                        <input readOnly value="192.168.1.45" className="bg-black/30 border border-gray-600 rounded p-1 text-gray-400 text-xs flex-1" />
-                                        <button className="text-blue-400 text-xs hover:text-white">Copy JSON</button>
+                                    <span className="block text-white font-medium mb-4">Concurrency Limits per Host</span>
+                                    <p className="text-xs text-gray-400 mb-4">Limit simultaneous downloads from specific websites (e.g. mega.nz to 1).</p>
+
+                                    <div className="flex gap-2 mb-4">
+                                        <input type="text" placeholder="example.com" className="bg-black/30 border border-gray-600 rounded p-2 text-gray-300 text-sm flex-1" id="hostInput" />
+                                        <input type="number" min="1" max="10" placeholder="1" className="bg-black/30 border border-gray-600 rounded p-2 text-gray-300 text-sm w-16" id="limitInput" />
+                                        <button
+                                            className="px-3 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm font-medium"
+                                            onClick={() => {
+                                                const host = (document.getElementById('hostInput') as HTMLInputElement).value;
+                                                const limit = parseInt((document.getElementById('limitInput') as HTMLInputElement).value);
+                                                if (host && limit > 0) {
+                                                    // @ts-ignore
+                                                    if (window.go?.main?.App?.SetHostLimit) {
+                                                        // @ts-ignore
+                                                        window.go.main.App.SetHostLimit(host, limit);
+                                                    }
+                                                }
+                                            }}
+                                        >Add Rule</button>
                                     </div>
                                 </div>
                             </div>
                         )}
+
+                        {activeTab === 'security' && <SecurityLog />}
                     </div>
-                </div>
+                </div >
 
                 <div className="p-4 border-t border-gray-800 flex justify-end bg-gray-900/50">
                     <button
@@ -153,8 +138,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         <Save size={18} /> Save Changes
                     </button>
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 };
 

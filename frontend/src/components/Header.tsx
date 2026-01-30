@@ -4,9 +4,10 @@ import { cn } from '../utils';
 
 interface HeaderProps {
     onAddDownload: () => void;
+    globalSpeed?: number; // MB/s
 }
 
-export const Header: React.FC<HeaderProps> = ({ onAddDownload }) => {
+export const Header: React.FC<HeaderProps> = ({ onAddDownload, globalSpeed = 0 }) => {
     return (
         <header className="h-16 fixed top-0 right-0 left-64 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 z-40 flex items-center justify-between px-6 dragging-header">
             {/* Left: Breadcrumbs / Title */}
@@ -20,9 +21,9 @@ export const Header: React.FC<HeaderProps> = ({ onAddDownload }) => {
             <div className="flex items-center gap-4 no-drag">
 
                 {/* Global Speed Indicator */}
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-800/50 rounded-full border border-slate-700/50">
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-800/50 rounded-full border border-slate-700/50" title="Total Real-time Bandwidth">
                     <Activity size={14} className="text-cyan-400 animate-pulse" />
-                    <span className="text-sm font-mono text-cyan-400">45.2 MB/s</span>
+                    <span className="text-sm font-mono text-cyan-400">{globalSpeed.toFixed(1)} MB/s</span>
                 </div>
 
                 <div className="h-6 w-px bg-slate-800"></div>

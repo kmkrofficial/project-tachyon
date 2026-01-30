@@ -33,7 +33,7 @@ export function DownloadItem({ item, onOpenFolder }: DownloadItemProps) {
                     </span>
                 </div>
 
-                <ProgressBar progress={item.progress} status={item.status} />
+                <ProgressBar progress={item.progress} status={item.status as any} />
 
                 <div className="mt-1 flex justify-between text-xs text-gray-500">
                     <span>{item.progress.toFixed(1)}%</span>

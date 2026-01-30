@@ -153,7 +153,7 @@ func (s *APIServer) handleDownload(w http.ResponseWriter, r *http.Request) {
 	defaultPath := filepath.Join(homeDir, "Downloads")
 
 	// Start Download
-	id, err := s.engine.StartDownload(req.URL, defaultPath)
+	id, err := s.engine.StartDownload(req.URL, defaultPath, "", nil)
 	if err != nil {
 		s.logger.Error("API failed to start download", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

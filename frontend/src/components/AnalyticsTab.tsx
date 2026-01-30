@@ -1,220 +1,166 @@
-import React, { useState } from 'react';
+import React, { useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Activity, Download, HardDrive, Wifi, Zap, Loader2 } from 'lucide-react';
+import { Activity, HardDrive, File, Music, Video, Image, Archive } from 'lucide-react';
 import { useTachyon } from '../hooks/useTachyon';
 import prettyBytes from 'pretty-bytes';
-import { cn } from '../utils';
-
-interface SpeedTestState {
-    dl: number;
-    ul: number;
-    ping: number;
-    serverName: string;
-    serverLocation: string;
-    isp: string;
-}
 
 export const AnalyticsTab = () => {
-    const { runSpeedTest, getLifetimeStats } = useTachyon();
-    const [speedTestResult, setSpeedTestResult] = useState<SpeedTestState | null>(null);
-    const [testing, setTesting] = useState(false);
-    const [testError, setTestError] = useState<string | null>(null);
-    const [stats, setStats] = useState({ totalBytes: 0, files: 0 });
+    const { analyticsData, downloads } = useTachyon();
 
-    React.useEffect(() => {
-        getLifetimeStats().then(bytes => {
-            setStats({ totalBytes: bytes, files: Math.floor(bytes / 1024 / 1024 / 50) });
-        });
-    }, []);
+    // Transform Daily History for Chart
+    const chartData = useMemo(() => {
+        if (!analyticsData || !analyticsData.daily_history) return [];
 
-    const handleTest = async () => {
-        setTesting(true);
-        setTestError(null);
-        try {
-            const res = await runSpeedTest();
-            if (res) {
-                setSpeedTestResult({
-                    dl: res.download_mbps,
-                    ul: res.upload_mbps,
-                    ping: res.ping_ms,
-                    serverName: res.server_name || 'Unknown',
-                    serverLocation: res.server_location || 'Unknown',
-                    isp: res.isp || ''
-                });
-            } else {
-                setTestError("Speed test failed - no data returned");
+        // analyticsData.daily_history is { "2024-01-01": 1234 }
+        // We need array sorted by date
+        const dates = Object.keys(analyticsData.daily_history).sort();
+        // If empty, generate last 7 days empty
+        if (dates.length === 0) {
+            const empty = [];
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                empty.push({ name: d.toLocaleDateString(undefined, { weekday: 'short' }), downloads: 0 });
             }
-        } catch (e) {
-            console.error("Speed test failed", e);
-            setTestError("Connection failed. Check your internet.");
+            return empty;
         }
-        setTesting(false);
-    };
 
-    // Mock Data
-    const data = [
-        { name: 'Mon', downloads: 400 },
-        { name: 'Tue', downloads: 300 },
-        { name: 'Wed', downloads: 200 },
-        { name: 'Thu', downloads: 278 },
-        { name: 'Fri', downloads: 189 },
-        { name: 'Sat', downloads: 239 },
-        { name: 'Sun', downloads: 349 },
-    ];
+        return dates.map(date => {
+            const bytes = analyticsData.daily_history[date];
+            return {
+                name: new Date(date).toLocaleDateString(undefined, { weekday: 'short' }), // "Mon"
+                fullDate: date,
+                downloads: Number((bytes / (1024 * 1024)).toFixed(1)) // MB
+            };
+        });
+    }, [analyticsData]);
 
-    const fileTypeData = [
-        { name: 'Video', value: 400 },
-        { name: 'Music', value: 300 },
-        { name: 'Docs', value: 300 },
-        { name: 'Archives', value: 200 },
-    ];
-    const COLORS = ['#06b6d4', '#22c55e', '#f59e0b', '#8b5cf6'];
+    // Calculate Composition
+    const compositionData = useMemo(() => {
+        const counts: Record<string, number> = { Video: 0, Music: 0, Images: 0, Archives: 0, Docs: 0, Other: 0 };
+        Object.values(downloads).forEach(d => {
+            const ext = d.filename.split('.').pop()?.toLowerCase();
+            if (['mp4', 'mkv', 'avi', 'mov'].includes(ext || '')) counts.Video++;
+            else if (['mp3', 'wav', 'flac', 'aac'].includes(ext || '')) counts.Music++;
+            else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '')) counts.Images++;
+            else if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext || '')) counts.Archives++;
+            else if (['pdf', 'doc', 'docx', 'txt', 'md'].includes(ext || '')) counts.Docs++;
+            else counts.Other++;
+        });
+
+        // Filter out zero entries
+        return Object.entries(counts)
+            .filter(([_, value]) => value > 0)
+            .map(([name, value]) => ({ name, value }));
+    }, [downloads]);
+
+    const COLORS = ['#06b6d4', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b'];
+
+    if (!analyticsData) {
+        return (
+            <div className="flex h-96 items-center justify-center text-slate-500">
+                <Activity className="animate-pulse mr-2" /> Loading Analytics...
+            </div>
+        )
+    }
 
     return (
         <div className="animate-fade-in space-y-6">
-            <h2 className="text-2xl font-bold text-white mb-6 hidden">Network Intelligence</h2> {/* Hidden as header exists */}
 
-            {/* 2x2 Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-140px)]">
+            {/* 2 Grid */}
+            {/* 2 Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-[600px] h-[calc(100vh-140px)]">
 
                 {/* 1. Network Activity (Top Left) */}
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col">
                     <div className="flex justify-between items-center mb-6">
                         <h3 className="text-lg font-semibold text-slate-200">Network Activity</h3>
                         <div className="flex gap-2">
-                            <span className="px-2 py-1 bg-slate-800 rounded text-xs text-slate-400">24H</span>
-                            <span className="px-2 py-1 bg-cyan-900/20 text-cyan-400 rounded text-xs font-bold">LIVE</span>
+                            <span className="px-2 py-1 bg-slate-800 rounded text-xs text-slate-400">7 Days</span>
                         </div>
                     </div>
-                    <div className="flex-1 w-full min-h-0">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={data}>
-                                <defs>
-                                    <linearGradient id="colorDl" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3} /> {/* Cyan-500 */}
-                                        <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <XAxis dataKey="name" stroke="#475569" fontSize={12} tickLine={false} axisLine={false} />
-                                <YAxis stroke="#475569" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value} MB`} />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', color: '#f1f5f9' }}
-                                    itemStyle={{ color: '#22d3ee' }}
-                                />
-                                <Area type="monotone" dataKey="downloads" stroke="#06b6d4" strokeWidth={3} fillOpacity={1} fill="url(#colorDl)" />
-                            </AreaChart>
-                        </ResponsiveContainer>
+                    <div className="flex-1 w-full min-h-0 relative">
+                        {chartData.some(d => d.downloads > 0) ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={chartData}>
+                                    <defs>
+                                        <linearGradient id="colorDl" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3} />
+                                            <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <XAxis dataKey="name" stroke="#475569" fontSize={12} tickLine={false} axisLine={false} />
+                                    <YAxis stroke="#475569" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value} MB`} />
+                                    <Tooltip
+                                        contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', color: '#f1f5f9' }}
+                                        itemStyle={{ color: '#22d3ee' }}
+                                        formatter={(value: any) => [`${value} MB`, 'Downloaded']}
+                                        labelFormatter={(label) => label}
+                                    />
+                                    <Area type="monotone" dataKey="downloads" stroke="#06b6d4" strokeWidth={3} fillOpacity={1} fill="url(#colorDl)" />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500">
+                                <Activity className="w-12 h-12 mb-3 opacity-20" />
+                                <p className="text-sm font-medium text-slate-400">Need more data</p>
+                                <p className="text-xs text-slate-600 mt-1">Start downloading to populate the graph</p>
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* 2. Speed Test (Top Right) */}
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-32 bg-cyan-500/5 blur-[100px] rounded-full pointer-events-none"></div>
+                {/* Right Column Stack */}
+                <div className="flex flex-col gap-6">
 
-                    <h3 className="text-lg font-semibold text-slate-200 mb-4 relative z-10">Connection Quality</h3>
-
-                    {/* Server Info */}
-                    {speedTestResult && (
-                        <p className="text-xs text-slate-500 text-center mb-2 relative z-10">
-                            {speedTestResult.serverLocation} {speedTestResult.isp && `• ${speedTestResult.isp}`}
-                        </p>
-                    )}
-
-                    <div className="flex flex-col items-center justify-center h-[50%] relative z-10">
-                        {/* Gauge UI Simulation */}
-                        <div className="w-48 h-24 bg-slate-800 rounded-t-full relative overflow-hidden mb-6">
-                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-40 h-20 bg-slate-900 rounded-t-full flex items-end justify-center pb-2">
-                                {testing ? (
-                                    <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mb-2" />
-                                ) : (
-                                    <>
-                                        <span className={cn("text-3xl font-mono font-bold transition-all", speedTestResult ? "text-white" : "text-slate-600")}>
-                                            {speedTestResult ? speedTestResult.dl.toFixed(0) : "--"}
-                                        </span>
-                                        <span className="text-xs text-slate-500 mb-1 ml-1">Mbps</span>
-                                    </>
-                                )}
+                    {/* 2. Library Composition */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex-1">
+                        <h3 className="text-lg font-semibold text-slate-200 mb-4">Library Composition</h3>
+                        {compositionData.length === 0 ? (
+                            <div className="h-full flex flex-col items-center justify-center text-slate-500 text-sm">
+                                <HardDrive size={32} className="mb-2 opacity-50" />
+                                No files tracked yet
                             </div>
-                            <div className="absolute bottom-0 left-0 w-full h-2 bg-slate-700"></div>
-                        </div>
-
-                        <button
-                            onClick={handleTest}
-                            disabled={testing}
-                            className="bg-cyan-600 hover:bg-cyan-500 text-white px-8 py-3 rounded-full font-bold shadow-lg shadow-cyan-500/20 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                        >
-                            {testing ? (
-                                <>
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                    Connecting...
-                                </>
-                            ) : (
-                                "Run Speed Test"
-                            )}
-                        </button>
-
-                        {/* Error Message */}
-                        {testError && (
-                            <p className="text-red-400 text-xs mt-3">{testError}</p>
+                        ) : (
+                            <div className="flex items-center h-[200px]">
+                                <ResponsiveContainer width="50%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={compositionData}
+                                            innerRadius={50}
+                                            outerRadius={70}
+                                            paddingAngle={5}
+                                            dataKey="value"
+                                            stroke="none"
+                                        >
+                                            {compositionData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                            ))}
+                                        </Pie>
+                                    </PieChart>
+                                </ResponsiveContainer>
+                                <div className="w-[50%] space-y-3">
+                                    {compositionData.map((entry, index) => (
+                                        <div key={entry.name} className="flex items-center justify-between text-sm">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-3 h-3 rounded-full" style={{ background: COLORS[index % COLORS.length] }}></div>
+                                                <span className="text-slate-400">{entry.name}</span>
+                                            </div>
+                                            <span className="text-slate-200 font-mono">{entry.value}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         )}
                     </div>
 
-                    <div className="grid grid-cols-3 gap-4 mt-auto pt-4 border-t border-slate-800 relative z-10">
-                        <div className="text-center">
-                            <p className="text-xs text-slate-500 uppercase">Ping</p>
-                            <p className="text-lg font-mono text-yellow-400">{speedTestResult ? speedTestResult.ping : '-- '} ms</p>
-                        </div>
-                        <div className="text-center border-l border-slate-800">
-                            <p className="text-xs text-slate-500 uppercase">Download</p>
-                            <p className="text-lg font-mono text-cyan-400">{speedTestResult ? speedTestResult.dl.toFixed(1) : '-- '} <span className="text-xs">Mb</span></p>
-                        </div>
-                        <div className="text-center border-l border-slate-800">
-                            <p className="text-xs text-slate-500 uppercase">Upload</p>
-                            <p className="text-lg font-mono text-blue-400">{speedTestResult ? speedTestResult.ul.toFixed(1) : '-- '} <span className="text-xs">Mb</span></p>
-                        </div>
+                    {/* 3. Lifetime Stats */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 grid grid-cols-2 gap-4">
+                        <StatBox label="Lifetime Download" value={prettyBytes(analyticsData.total_downloaded || 0)} />
+                        <StatBox label="Files Processed" value={(analyticsData.total_files || 0).toString()} />
+                        <StatBox label="Disk Used" value={`${analyticsData.disk_usage?.percent.toFixed(1) || 0}%`} />
+                        <StatBox label="Free Space" value={`${analyticsData.disk_usage?.free_gb.toFixed(0) || 0} GB`} />
                     </div>
-                </div>
-
-                {/* 3. Storage Breakdown (Bottom Left - merged with Stats) */}
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-                    <h3 className="text-lg font-semibold text-slate-200 mb-4">Library Composition</h3>
-                    <div className="flex items-center h-[200px]">
-                        <ResponsiveContainer width="50%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={fileTypeData}
-                                    innerRadius={50}
-                                    outerRadius={70}
-                                    paddingAngle={5}
-                                    dataKey="value"
-                                    stroke="none"
-                                >
-                                    {fileTypeData.map((entry, index) => (
-                                        <Cell key={`cell - ${index} `} fill={COLORS[index % COLORS.length]} />
-                                    ))}
-                                </Pie>
-                            </PieChart>
-                        </ResponsiveContainer>
-                        <div className="w-[50%] space-y-3">
-                            {fileTypeData.map((entry, index) => (
-                                <div key={entry.name} className="flex items-center justify-between text-sm">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-3 h-3 rounded-full" style={{ background: COLORS[index % COLORS.length] }}></div>
-                                        <span className="text-slate-400">{entry.name}</span>
-                                    </div>
-                                    <span className="text-slate-200 font-mono">{entry.value}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-
-                {/* 4. Lifetime Stats (Bottom Right) */}
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 grid grid-cols-2 gap-4">
-                    <StatBox label="Lifetime Download" value={prettyBytes(stats.totalBytes)} />
-                    <StatBox label="Files Processed" value={stats.files.toString()} />
-                    <StatBox label="Peak Speed" value="48.2 MB/s" />
-                    <StatBox label="Active Time" value="142h" />
                 </div>
             </div>
         </div>

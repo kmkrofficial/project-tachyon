@@ -2,10 +2,20 @@ package core
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 )
+
+// GetDefaultDownloadPath returns the user's Downloads directory
+func GetDefaultDownloadPath() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(homeDir, "Downloads"), nil
+}
 
 // OpenFile opens the file with the default associate application
 func OpenFile(path string) error {

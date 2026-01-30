@@ -7,9 +7,10 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-
 	"sync"
 	"time"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // ANSI color codes
@@ -68,30 +69,84 @@ func (h *ConsoleHandler) WithGroup(name string) slog.Handler {
 	return h
 }
 
-func New() (*slog.Logger, error) {
+// WailsHandler emits logs as Wails events
+type WailsHandler struct {
+	mu  sync.Mutex
+	ctx context.Context
+}
+
+func NewWailsHandler() *WailsHandler {
+	return &WailsHandler{}
+}
+
+func (h *WailsHandler) SetContext(ctx context.Context) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.ctx = ctx
+}
+
+func (h *WailsHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return true
+}
+
+func (h *WailsHandler) Handle(ctx context.Context, r slog.Record) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if h.ctx == nil {
+		return nil
+	}
+
+	data := make(map[string]interface{})
+	r.Attrs(func(a slog.Attr) bool {
+		data[a.Key] = a.Value.Any()
+		return true
+	})
+
+	runtime.EventsEmit(h.ctx, "log:entry", map[string]interface{}{
+		"level":   r.Level.String(),
+		"message": r.Message,
+		"time":    r.Time.Format(time.RFC3339),
+		"data":    data,
+	})
+
+	return nil
+}
+
+func (h *WailsHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return h // Simplification
+}
+
+func (h *WailsHandler) WithGroup(name string) slog.Handler {
+	return h
+}
+
+// New creates a new logger with FanoutHandler (JSON in File + Console + Wails)
+func New(consoleOutput io.Writer) (*slog.Logger, *WailsHandler, error) {
 	appData, err := os.UserConfigDir()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	logDir := filepath.Join(appData, "Tachyon", "logs")
 	if err := os.MkdirAll(logDir, 0755); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	f, err := os.OpenFile(filepath.Join(logDir, "app.json"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	jsonHandler := slog.NewJSONHandler(f, nil)
-	consoleHandler := NewConsoleHandler(os.Stdout)
+	consoleHandler := NewConsoleHandler(consoleOutput)
+	wailsHandler := NewWailsHandler()
 
 	// Simple fanout handler
 	handler := &FanoutHandler{
-		handlers: []slog.Handler{jsonHandler, consoleHandler},
+		handlers: []slog.Handler{jsonHandler, consoleHandler, wailsHandler},
 	}
 
-	return slog.New(handler), nil
+	return slog.New(handler), wailsHandler, nil
 }
 
 type FanoutHandler struct {

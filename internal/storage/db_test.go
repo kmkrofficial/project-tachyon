@@ -32,7 +32,7 @@ func setupTestDB(t *testing.T) *Storage {
 		t.Fatalf("Failed to migrate test database: %v", err)
 	}
 
-	return &Storage{db: db}
+	return &Storage{DB: db}
 }
 
 func TestTaskCRUD(t *testing.T) {

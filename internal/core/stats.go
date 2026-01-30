@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"project-tachyon/internal/storage"
 	"sync"
+	"sync/atomic"
 
 	"github.com/shirou/gopsutil/v3/disk"
 )
@@ -25,9 +26,10 @@ type AnalyticsData struct {
 }
 
 type StatsManager struct {
-	storage *storage.Storage
-	mu      sync.Mutex
-	cache   map[string]interface{}
+	storage      *storage.Storage
+	mu           sync.Mutex
+	cache        map[string]interface{}
+	currentSpeed int64 // Atomic
 }
 
 func NewStatsManager(s *storage.Storage) *StatsManager {
@@ -35,6 +37,16 @@ func NewStatsManager(s *storage.Storage) *StatsManager {
 		storage: s,
 		cache:   make(map[string]interface{}),
 	}
+}
+
+// UpdateDownloadSpeed updates the current global download speed (atomic)
+func (sm *StatsManager) UpdateDownloadSpeed(bytesPerSec int64) {
+	atomic.StoreInt64(&sm.currentSpeed, bytesPerSec)
+}
+
+// GetCurrentSpeed returns the instant speed
+func (sm *StatsManager) GetCurrentSpeed() int64 {
+	return atomic.LoadInt64(&sm.currentSpeed)
 }
 
 // TrackDownloadBytes increments today's download stats using SQL upsert

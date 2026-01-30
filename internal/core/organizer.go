@@ -1,134 +1,99 @@
 package core
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
+	"project-tachyon/internal/storage"
 	"strings"
 )
 
-// Category constants for file organization
-const (
-	CategoryVideo     = "Videos"
-	CategoryMusic     = "Music"
-	CategoryImages    = "Images"
-	CategoryArchives  = "Archives"
-	CategoryDocuments = "Documents"
-	CategorySoftware  = "Software"
-	CategoryOthers    = "Others"
-)
-
-// TachyonRootFolder is the main download folder name
-const TachyonRootFolder = "Tachyon Downloads"
-
-// Extension to category mapping
-var extensionCategories = map[string]string{
-	// Video
-	".mp4": CategoryVideo, ".mkv": CategoryVideo, ".webm": CategoryVideo,
-	".avi": CategoryVideo, ".mov": CategoryVideo, ".wmv": CategoryVideo,
-	".flv": CategoryVideo, ".m4v": CategoryVideo,
-	// Music
-	".mp3": CategoryMusic, ".wav": CategoryMusic, ".flac": CategoryMusic,
-	".aac": CategoryMusic, ".ogg": CategoryMusic, ".m4a": CategoryMusic,
-	// Images
-	".jpg": CategoryImages, ".jpeg": CategoryImages, ".png": CategoryImages,
-	".gif": CategoryImages, ".webp": CategoryImages, ".bmp": CategoryImages,
-	".svg": CategoryImages, ".ico": CategoryImages,
-	// Archives
-	".zip": CategoryArchives, ".rar": CategoryArchives, ".7z": CategoryArchives,
-	".tar": CategoryArchives, ".gz": CategoryArchives, ".bz2": CategoryArchives,
-	// Documents
-	".pdf": CategoryDocuments, ".doc": CategoryDocuments, ".docx": CategoryDocuments,
-	".xls": CategoryDocuments, ".xlsx": CategoryDocuments, ".ppt": CategoryDocuments,
-	".pptx": CategoryDocuments, ".txt": CategoryDocuments, ".rtf": CategoryDocuments,
-	".odt": CategoryDocuments, ".ods": CategoryDocuments,
-	// Software
-	".exe": CategorySoftware, ".msi": CategorySoftware, ".dmg": CategorySoftware,
-	".deb": CategorySoftware, ".rpm": CategorySoftware, ".pkg": CategorySoftware,
-	".appimage": CategorySoftware, ".apk": CategorySoftware,
+// SmartOrganizer handles automatic file categorization and moving
+type SmartOrganizer struct {
+	enableSmartSorting bool
 }
 
-// GetCategory returns the category based on file extension
+func NewSmartOrganizer() *SmartOrganizer {
+	return &SmartOrganizer{
+		enableSmartSorting: true, // Default true, later from config
+	}
+}
+
+// GetCategory returns the category for a given filename based on extension
 func GetCategory(filename string) string {
 	ext := strings.ToLower(filepath.Ext(filename))
-	if cat, ok := extensionCategories[ext]; ok {
-		return cat
-	}
-	return CategoryOthers
-}
-
-// GetDefaultDownloadPath returns the default Tachyon Downloads path
-// Cross-platform: ~/Downloads/Tachyon Downloads/
-func GetDefaultDownloadPath() (string, error) {
-	var downloadsDir string
-
-	switch runtime.GOOS {
-	case "windows":
-		// Windows: Use USERPROFILE\Downloads
-		userProfile := os.Getenv("USERPROFILE")
-		if userProfile == "" {
-			home, err := os.UserHomeDir()
-			if err != nil {
-				return "", err
-			}
-			userProfile = home
-		}
-		downloadsDir = filepath.Join(userProfile, "Downloads")
-	case "darwin":
-		// macOS: Use ~/Downloads
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		downloadsDir = filepath.Join(home, "Downloads")
+	switch ext {
+	// Images
+	case ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg":
+		return "Images"
+	// Videos
+	case ".mp4", ".mkv", ".mov", ".avi", ".webm", ".wmv":
+		return "Videos"
+	// Music
+	case ".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a":
+		return "Music"
+	// Archives
+	case ".zip", ".rar", ".7z", ".tar", ".gz", ".iso":
+		return "Archives"
+	// Documents
+	case ".pdf", ".docx", ".xlsx", ".pptx", ".txt", ".md":
+		return "Documents"
+	// Software
+	case ".exe", ".msi", ".dmg", ".pkg", ".deb":
+		return "Software"
 	default:
-		// Linux/Other: Check XDG_DOWNLOAD_DIR or fallback to ~/Downloads
-		xdgDownload := os.Getenv("XDG_DOWNLOAD_DIR")
-		if xdgDownload != "" {
-			downloadsDir = xdgDownload
-		} else {
-			home, err := os.UserHomeDir()
-			if err != nil {
-				return "", err
-			}
-			downloadsDir = filepath.Join(home, "Downloads")
-		}
+		return "Others"
 	}
-
-	// Create Tachyon root folder
-	tachyonRoot := filepath.Join(downloadsDir, TachyonRootFolder)
-	if err := os.MkdirAll(tachyonRoot, 0755); err != nil {
-		return "", err
-	}
-
-	return tachyonRoot, nil
 }
 
-// GetOrganizedPath returns the full path including category subfolder
-// baseDir should be the Tachyon root or a custom location
+// GetOrganizedPath returns the full path where the file should be stored
 func GetOrganizedPath(baseDir, filename string) (string, error) {
 	category := GetCategory(filename)
-	categoryPath := filepath.Join(baseDir, category)
-
-	// Create category subfolder if not exists
-	if err := os.MkdirAll(categoryPath, 0755); err != nil {
-		return "", err
-	}
-
-	return filepath.Join(categoryPath, filename), nil
+	return filepath.Join(baseDir, category, filename), nil
 }
 
-// EnsureCategoryFolders pre-creates all category subfolders
-func EnsureCategoryFolders(baseDir string) error {
-	categories := []string{
-		CategoryVideo, CategoryMusic, CategoryImages,
-		CategoryArchives, CategoryDocuments, CategorySoftware, CategoryOthers,
+// OrganizeFile moves the completed download to a categorized subfolder
+func (o *SmartOrganizer) OrganizeFile(task *storage.DownloadTask) (string, error) {
+	if !o.enableSmartSorting {
+		return task.SavePath, nil
 	}
-	for _, cat := range categories {
-		path := filepath.Join(baseDir, cat)
-		if err := os.MkdirAll(path, 0755); err != nil {
-			return err
+
+	category := GetCategory(task.Filename)
+
+	// Base directory is the parent of current SavePath
+	baseDir := filepath.Dir(task.SavePath)
+
+	targetDir := filepath.Join(baseDir, category)
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		return task.SavePath, fmt.Errorf("failed to create category dir: %w", err)
+	}
+
+	targetPath := filepath.Join(targetDir, task.Filename)
+	targetPath = o.findAvailablePath(targetPath)
+
+	if err := os.Rename(task.SavePath, targetPath); err != nil {
+		return task.SavePath, fmt.Errorf("failed to move file: %w", err)
+	}
+
+	return targetPath, nil
+}
+
+func (o *SmartOrganizer) findAvailablePath(basePath string) string {
+	if _, err := os.Stat(basePath); os.IsNotExist(err) {
+		return basePath
+	}
+	ext := filepath.Ext(basePath)
+
+	dir := filepath.Dir(basePath)
+	filename := filepath.Base(basePath)
+	nameOnly := strings.TrimSuffix(filename, ext)
+
+	for i := 1; i < 1000; i++ {
+		candidate := filepath.Join(dir, fmt.Sprintf("%s (%d)%s", nameOnly, i, ext))
+		if _, err := os.Stat(candidate); os.IsNotExist(err) {
+			return candidate
 		}
 	}
-	return nil
+	// Fallback
+	return filepath.Join(dir, fmt.Sprintf("%s_%d%s", nameOnly, 9999, ext))
 }

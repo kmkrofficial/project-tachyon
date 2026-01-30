@@ -1,8 +1,6 @@
 package storage
 
 import (
-	"time"
-
 	"gorm.io/gorm"
 )
 
@@ -12,8 +10,9 @@ type DownloadTask struct {
 	Filename      string         `json:"filename"`
 	URL           string         `json:"url"`
 	SavePath      string         `json:"save_path"`
-	Status        string         `gorm:"index" json:"status"`       // downloading, completed, paused, error, pending
-	Priority      int            `gorm:"default:1" json:"priority"` // 0=Low, 1=Normal, 2=High
+	Status        string         `gorm:"index" json:"status"`          // downloading, completed, paused, error, pending
+	Priority      int            `gorm:"default:1" json:"priority"`    // 0=Low, 1=Normal, 2=High
+	QueueOrder    int            `gorm:"default:0" json:"queue_order"` // Sequential order in queue
 	Category      string         `gorm:"index" json:"category"`
 	TotalSize     int64          `json:"total_size"`
 	Downloaded    int64          `json:"downloaded"`
@@ -21,8 +20,15 @@ type DownloadTask struct {
 	Speed         float64        `json:"speed"` // bytes/sec
 	TimeRemaining string         `json:"time_remaining"`
 	MetaJSON      string         `json:"-"` // Store complex chunk data/headers as JSON
-	CreatedAt     time.Time      `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt     time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
+	FileExists    bool           `gorm:"-" json:"file_exists"`
+	ExpectedHash  string         `json:"expected_hash"`
+	HashAlgorithm string         `json:"hash_algorithm"`
+	Headers       string         `json:"headers"`    // JSON serialized
+	Cookies       string         `json:"cookies"`    // JSON serialized
+	StartTime     string         `json:"start_time"` // ISO 8601 for scheduled start
+	Domain        string         `json:"domain"`     // e.g. "google.com" for concurrency limits
+	CreatedAt     string         `json:"created_at"`
+	UpdatedAt     string         `json:"updated_at"`
 	DeletedAt     gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
@@ -63,6 +69,24 @@ type AppSetting struct {
 // TableName specifies the table name for AppSetting
 func (AppSetting) TableName() string {
 	return "app_settings"
+}
+
+// SpeedTestHistory stores past speed test results
+type SpeedTestHistory struct {
+	ID             uint    `gorm:"primaryKey" json:"id"`
+	DownloadSpeed  float64 `json:"download_mbps"`
+	UploadSpeed    float64 `json:"upload_mbps"`
+	Ping           int64   `json:"ping_ms"`
+	Jitter         int64   `json:"jitter_ms"`
+	ISP            string  `json:"isp"`
+	ServerName     string  `json:"server_name"`
+	ServerLocation string  `json:"server_location"`
+	Timestamp      string  `json:"timestamp"`
+}
+
+// TableName specifies the table name for SpeedTestHistory
+func (SpeedTestHistory) TableName() string {
+	return "speed_test_history"
 }
 
 // Task is an alias for backward compatibility with existing code
