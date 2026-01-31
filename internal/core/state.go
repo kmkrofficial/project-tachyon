@@ -79,3 +79,143 @@ func (sm *StateManager) CreateInitialState(totalSize int64, etag, lastModified s
 		Parts:        make(map[int]storage.PartState),
 	}
 }
+
+// ===== Bitfield Helpers for Efficient State Serialization =====
+
+// CompletedPartsToBitfield converts a map[int]bool of completed parts to a compact []byte bitmap
+// This is O(n) where n is numParts, and produces ceil(numParts/8) bytes
+// Bit i is set if part i is complete
+func CompletedPartsToBitfield(completedParts map[int]bool, numParts int) []byte {
+	if numParts <= 0 {
+		return nil
+	}
+
+	// Calculate number of bytes needed
+	numBytes := (numParts + 7) / 8
+	bitfield := make([]byte, numBytes)
+
+	for partID := range completedParts {
+		if partID >= 0 && partID < numParts {
+			byteIdx := partID / 8
+			bitIdx := uint(partID % 8)
+			bitfield[byteIdx] |= (1 << bitIdx)
+		}
+	}
+
+	return bitfield
+}
+
+// BitfieldToCompletedParts converts a []byte bitmap back to map[int]bool
+// Only includes parts that are marked as complete (bit set to 1)
+func BitfieldToCompletedParts(bitfield []byte, numParts int) map[int]bool {
+	result := make(map[int]bool)
+
+	if len(bitfield) == 0 || numParts <= 0 {
+		return result
+	}
+
+	for partID := 0; partID < numParts; partID++ {
+		byteIdx := partID / 8
+		if byteIdx >= len(bitfield) {
+			break
+		}
+		bitIdx := uint(partID % 8)
+		if (bitfield[byteIdx] & (1 << bitIdx)) != 0 {
+			result[partID] = true
+		}
+	}
+
+	return result
+}
+
+// CountCompletedParts quickly counts the number of completed parts from a bitfield
+// Uses population count for efficiency
+func CountCompletedParts(bitfield []byte) int {
+	count := 0
+	for _, b := range bitfield {
+		count += popCount(b)
+	}
+	return count
+}
+
+// popCount counts the number of set bits in a byte (Hamming weight)
+func popCount(b byte) int {
+	count := 0
+	for b != 0 {
+		count += int(b & 1)
+		b >>= 1
+	}
+	return count
+}
+
+// CompactResumeState is an optimized version of ResumeState using bitfield
+// This reduces storage size from O(n * sizeof(PartState)) to O(n/8) bytes
+type CompactResumeState struct {
+	Version         int    `json:"v"`
+	ETag            string `json:"etag,omitempty"`
+	LastModified    string `json:"lm,omitempty"`
+	TotalSize       int64  `json:"total_size"`
+	NumParts        int    `json:"num_parts"`
+	CompletedBitmap []byte `json:"bitmap,omitempty"` // Base64 encoded in JSON
+}
+
+// ToCompact converts a ResumeState to CompactResumeState
+func (sm *StateManager) ToCompact(state *storage.ResumeState, numParts int) *CompactResumeState {
+	if state == nil {
+		return nil
+	}
+
+	// Convert parts map to completedParts map[int]bool
+	completedParts := make(map[int]bool)
+	for id, part := range state.Parts {
+		if part.Complete {
+			completedParts[id] = true
+		}
+	}
+
+	return &CompactResumeState{
+		Version:         state.Version,
+		ETag:            state.ETag,
+		LastModified:    state.LastModified,
+		TotalSize:       state.TotalSize,
+		NumParts:        numParts,
+		CompletedBitmap: CompletedPartsToBitfield(completedParts, numParts),
+	}
+}
+
+// FromCompact converts a CompactResumeState back to ResumeState
+func (sm *StateManager) FromCompact(compact *CompactResumeState) *storage.ResumeState {
+	if compact == nil {
+		return nil
+	}
+
+	completedParts := BitfieldToCompletedParts(compact.CompletedBitmap, compact.NumParts)
+
+	parts := make(map[int]storage.PartState)
+	for id := range completedParts {
+		parts[id] = storage.PartState{Complete: true}
+	}
+
+	return &storage.ResumeState{
+		Version:      compact.Version,
+		ETag:         compact.ETag,
+		LastModified: compact.LastModified,
+		TotalSize:    compact.TotalSize,
+		Parts:        parts,
+	}
+}
+
+// SerializeCompact converts state to compact JSON format
+func (sm *StateManager) SerializeCompact(state *storage.ResumeState, numParts int) (string, error) {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	compact := sm.ToCompact(state, numParts)
+	compact.Version = 2 // Mark as compact format
+
+	data, err := json.Marshal(compact)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
