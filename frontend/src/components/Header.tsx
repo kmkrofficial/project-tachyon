@@ -1,6 +1,7 @@
-import React from 'react';
-import { Plus, Play, Pause, Activity } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, Play, Pause, Activity, Wifi } from 'lucide-react';
 import { cn } from '../utils';
+import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime';
 
 interface HeaderProps {
     onAddDownload: () => void;
@@ -9,7 +10,48 @@ interface HeaderProps {
     globalSpeed?: number; // MB/s
 }
 
+interface NetworkHealthEvent {
+    level: string; // "normal", "stressed", "critical"
+    details?: string;
+}
+
 export const Header: React.FC<HeaderProps> = ({ onAddDownload, onPauseAll, onResumeAll, globalSpeed = 0 }) => {
+    const [networkHealth, setNetworkHealth] = useState<NetworkHealthEvent>({ level: 'normal' });
+
+    // Listen for network health updates
+    useEffect(() => {
+        const handleNetworkHealth = (event: NetworkHealthEvent) => {
+            setNetworkHealth(event);
+        };
+
+        EventsOn("network:congestion_level", handleNetworkHealth);
+
+        // Poll initial network health
+        if (window.go?.main?.App?.GetNetworkHealth) {
+            window.go.main.App.GetNetworkHealth().then(setNetworkHealth).catch(console.error);
+        }
+
+        return () => {
+            EventsOff("network:congestion_level");
+        };
+    }, []);
+
+    const getHealthColor = () => {
+        switch (networkHealth.level) {
+            case 'critical': return 'bg-red-500';
+            case 'stressed': return 'bg-yellow-500';
+            default: return 'bg-green-500';
+        }
+    };
+
+    const getHealthLabel = () => {
+        switch (networkHealth.level) {
+            case 'critical': return 'Critical';
+            case 'stressed': return 'Stressed';
+            default: return 'Healthy';
+        }
+    };
+
     return (
         <header className="h-16 fixed top-0 right-0 left-64 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 z-40 flex items-center justify-between px-6 dragging-header">
             {/* Left: Breadcrumbs / Title */}
@@ -21,6 +63,16 @@ export const Header: React.FC<HeaderProps> = ({ onAddDownload, onPauseAll, onRes
 
             {/* Right: Global Actions */}
             <div className="flex items-center gap-4 no-drag">
+
+                {/* Network Health Indicator */}
+                <div
+                    className="flex items-center gap-2 px-3 py-1.5 bg-slate-800/50 rounded-full border border-slate-700/50 cursor-help"
+                    title={`Network: ${getHealthLabel()}${networkHealth.details ? ` - ${networkHealth.details}` : ''}`}
+                >
+                    <Wifi size={14} className="text-slate-400" />
+                    <div className={cn("w-2 h-2 rounded-full animate-pulse", getHealthColor())} />
+                    <span className="text-xs text-slate-400">{getHealthLabel()}</span>
+                </div>
 
                 {/* Global Speed Indicator */}
                 <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-800/50 rounded-full border border-slate-700/50" title="Total Real-time Bandwidth">
