@@ -4,7 +4,9 @@ import (
 	"embed"
 	"io"
 	"os"
+
 	"project-tachyon/internal/api"
+	"project-tachyon/internal/app"
 	"project-tachyon/internal/config"
 	"project-tachyon/internal/core"
 	"project-tachyon/internal/logger"
@@ -63,10 +65,6 @@ func main() {
 	controlServer := api.NewControlServer(engine, cfg, audit)
 	controlServer.Start(cfg.GetAIPort())
 
-	// Deprecated API Server (Legacy) - Keeping commented out or removed to favor new ControlServer
-	// apiServer := core.NewAPIServer(log, engine, store)
-	// apiServer.Start(45000)
-
 	// MCP Mode Execution
 	if mcpMode {
 		mcpServer := api.NewMCPServer(engine)
@@ -77,12 +75,12 @@ func main() {
 	// GUI Mode (Wails)
 
 	// Create an instance of the app structure, injecting dependencies
-	app := NewApp(log, engine, wailsHandler, cfg, audit)
+	application := app.NewApp(log, engine, wailsHandler, cfg, audit)
 
 	// Handle standard OS signals (Ctrl+C) for graceful shutdown
 	core.WaitForSignals(func() {
 		log.Info("OS Signal received, initiating shutdown...")
-		app.QuitApp()
+		application.QuitApp()
 	})
 
 	// Parse StartHidden flag
@@ -102,18 +100,15 @@ func main() {
 
 			mOpen := systray.AddMenuItem("Open Tachyon", "Restore the window")
 			systray.AddSeparator()
-			// mPause := systray.AddMenuItem("Pause All", "Pause all active downloads")
-			// mResume := systray.AddMenuItem("Resume All", "Resume all downloads")
-			// systray.AddSeparator()
 			mQuit := systray.AddMenuItem("Quit", "Quit the application")
 
 			go func() {
 				for {
 					select {
 					case <-mOpen.ClickedCh:
-						app.ShowApp()
+						application.ShowApp()
 					case <-mQuit.ClickedCh:
-						app.QuitApp()
+						application.QuitApp()
 					}
 				}
 			}()
@@ -126,14 +121,14 @@ func main() {
 	appMenu := menu.NewMenu()
 	fileMenu := appMenu.AddSubmenu("File")
 	fileMenu.AddText("Open Tachyon", keys.CmdOrCtrl("o"), func(_ *menu.CallbackData) {
-		app.ShowApp()
+		application.ShowApp()
 	})
 	fileMenu.AddSeparator()
 	fileMenu.AddText("Quit", keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) {
-		app.QuitApp()
+		application.QuitApp()
 	})
 
-	// Create application with options
+	// Create application with Wails options
 	err = wails.Run(&options.App{
 		Title:  "project-tachyon",
 		Width:  1024,
@@ -142,12 +137,12 @@ func main() {
 			Assets: assets,
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
-		OnStartup:        app.startup,
-		OnBeforeClose:    app.beforeClose, // Hook the close event
-		StartHidden:      startHidden,     // Handle --minimized
+		OnStartup:        application.Startup,
+		OnBeforeClose:    application.BeforeClose,
+		StartHidden:      startHidden,
 		Menu:             appMenu,
 		Bind: []interface{}{
-			app,
+			application,
 		},
 	})
 
