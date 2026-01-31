@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -32,6 +33,15 @@ const (
 	DownloadChunkSize = 1 * 1024 * 1024 // 1MB Part Size
 	BufferSize        = 32 * 1024       // 32KB Buffer for CopyBuffer
 	GenericUserAgent  = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36"
+
+	// Status for tasks needing URL refresh (403 received)
+	StatusNeedsAuth = "needs_auth"
+)
+
+// Sentinel errors
+var (
+	// ErrLinkExpired indicates the download URL has expired (HTTP 403)
+	ErrLinkExpired = errors.New("link expired or access denied (403)")
 )
 
 // DownloadPart represents a single unit of work
@@ -657,6 +667,39 @@ func (e *TachyonEngine) ResumeAllDownloads() {
 	}
 }
 
+// UpdateDownloadURL updates the URL for a task that requires authentication refresh
+// This is used when a download link has expired (HTTP 403) and needs a new URL
+func (e *TachyonEngine) UpdateDownloadURL(taskID, newURL string) error {
+	task, err := e.storage.GetTask(taskID)
+	if err != nil {
+		return fmt.Errorf("task not found: %w", err)
+	}
+
+	// Only allow URL update for tasks in needs_auth status
+	if task.Status != StatusNeedsAuth && task.Status != "paused" && task.Status != "error" {
+		return fmt.Errorf("task is not in a state that allows URL refresh (status: %s)", task.Status)
+	}
+
+	oldURL := task.URL
+	task.URL = newURL
+	task.Status = "paused" // Reset to paused so it can be resumed
+
+	if err := e.storage.SaveTask(task); err != nil {
+		return fmt.Errorf("failed to save task: %w", err)
+	}
+
+	e.logger.Info("Download URL updated", "id", taskID, "oldURL", oldURL, "newURL", newURL)
+
+	if e.ctx != nil {
+		runtime.EventsEmit(e.ctx, "download:url_updated", map[string]interface{}{
+			"id":      taskID,
+			"new_url": newURL,
+		})
+	}
+
+	return nil
+}
+
 // DeleteDownload removes the task and optionally the file
 func (e *TachyonEngine) DeleteDownload(id string, deleteFile bool) error {
 	e.PauseDownload(id)
@@ -1098,6 +1141,21 @@ Loop:
 			break Loop
 
 		case err := <-errCh:
+			// Check for link expiration (403 Forbidden)
+			if errors.Is(err, ErrLinkExpired) {
+				e.logger.Warn("Link expired - pausing for URL refresh", "id", task.ID)
+				task.Status = StatusNeedsAuth
+				task.MetaJSON = e.serializeState(task, completedParts)
+				e.storage.SaveTask(*task)
+				cancel()
+				if e.ctx != nil {
+					runtime.EventsEmit(e.ctx, "download:needs_auth", map[string]interface{}{
+						"id":     task.ID,
+						"reason": "Link expired (HTTP 403)",
+					})
+				}
+				return
+			}
 			// Critical error reported
 			e.failTask(task, fmt.Sprintf("Critical error: %v", err))
 			cancel()
@@ -1349,6 +1407,10 @@ func (e *TachyonEngine) downloadPart(ctx context.Context, taskID string, urlStr 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 206 && resp.StatusCode != 200 {
+		// Check for 403 Forbidden - indicates expired/invalid link
+		if resp.StatusCode == 403 {
+			return ErrLinkExpired
+		}
 		return fmt.Errorf("unexpected status: %d", resp.StatusCode)
 	}
 

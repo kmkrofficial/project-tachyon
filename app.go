@@ -255,6 +255,13 @@ func (a *App) ResumeAllDownloads() {
 	a.engine.ResumeAllDownloads()
 }
 
+// UpdateDownloadURL updates the URL for a task that needs authentication refresh
+// This is used when a download link has expired (HTTP 403) and needs a new URL
+func (a *App) UpdateDownloadURL(taskID, newURL string) error {
+	a.logger.Info("frontend_request", "method", "UpdateDownloadURL", "taskID", taskID)
+	return a.engine.UpdateDownloadURL(taskID, newURL)
+}
+
 // StopDownload stops a download permanently (can still be resumed manually)
 func (a *App) StopDownload(id string) {
 	a.logger.Info("frontend_request", "method", "StopDownload", "id", id)
