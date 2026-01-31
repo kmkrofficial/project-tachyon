@@ -1,0 +1,124 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e7]: T
+      - heading "Tachyon" [level=1] [ref=e8]
+    - navigation [ref=e9]:
+      - button "Dashboard" [ref=e10] [cursor=pointer]:
+        - img [ref=e11]
+        - text: Dashboard
+      - button "Active" [ref=e16] [cursor=pointer]:
+        - img [ref=e17]
+        - text: Active
+      - button "Analytics" [ref=e20] [cursor=pointer]:
+        - img [ref=e21]
+        - text: Analytics
+      - button "Scheduler" [ref=e23] [cursor=pointer]:
+        - img [ref=e24]
+        - text: Scheduler
+      - button "Speed Test" [ref=e27] [cursor=pointer]:
+        - img [ref=e28]
+        - text: Speed Test
+      - button "Settings" [ref=e30] [cursor=pointer]:
+        - img [ref=e31]
+        - text: Settings
+    - generic [ref=e35]:
+      - generic [ref=e36]: Disk Usage
+      - generic [ref=e37]: 100GB Free
+  - generic [ref=e40]:
+    - banner [ref=e41]:
+      - generic [ref=e42]:
+        - heading "Dashboard" [level=1] [ref=e43]
+        - generic [ref=e44]: /
+        - generic [ref=e45]: Overview
+      - generic [ref=e46]:
+        - 'generic "Network: Healthy" [ref=e47]':
+          - img [ref=e48]
+          - generic [ref=e53]: Healthy
+        - generic "Total Real-time Bandwidth" [ref=e54]:
+          - img [ref=e55]
+          - generic [ref=e57]: 0.0 MB/s
+        - button "Resume All" [ref=e59] [cursor=pointer]:
+          - img [ref=e60]
+        - button "Pause All" [ref=e62] [cursor=pointer]:
+          - img [ref=e63]
+        - button "Add Download" [ref=e66] [cursor=pointer]:
+          - img [ref=e67]
+          - generic [ref=e68]: Add Download
+    - main [ref=e69]:
+      - generic [ref=e71]:
+        - generic [ref=e72]:
+          - generic [ref=e73]:
+            - heading "Active Downloads" [level=3] [ref=e74]
+            - generic [ref=e75]:
+              - generic [ref=e76]: "0"
+              - generic [ref=e77]: 0.0 MB/s Total
+          - generic [ref=e78]:
+            - heading "Queue Pending" [level=3] [ref=e79]
+            - generic [ref=e80]:
+              - generic [ref=e81]: "0"
+              - generic [ref=e82]: "Next: --"
+          - generic [ref=e83]:
+            - heading "Data Today" [level=3] [ref=e84]
+            - generic [ref=e85]:
+              - generic [ref=e86]: 105 MB
+              - generic [ref=e87]: Daily Usage
+        - generic [ref=e89]:
+          - table [ref=e90]:
+            - rowgroup [ref=e91]:
+              - row "# File Name Status Progress Speed Size / ETA" [ref=e92]:
+                - columnheader "#" [ref=e93] [cursor=pointer]
+                - columnheader "File Name" [ref=e94] [cursor=pointer]
+                - columnheader "Status" [ref=e95] [cursor=pointer]
+                - columnheader "Progress" [ref=e96] [cursor=pointer]
+                - columnheader "Speed" [ref=e97] [cursor=pointer]
+                - columnheader "Size / ETA" [ref=e98] [cursor=pointer]
+                - columnheader [ref=e99] [cursor=pointer]
+            - rowgroup
+          - generic [ref=e100]:
+            - img [ref=e102]
+            - paragraph [ref=e105]: No downloads yet
+            - paragraph [ref=e106]: Add a link to get started
+  - generic [ref=e108]:
+    - generic [ref=e109]:
+      - heading "Settings" [level=2] [ref=e110]
+      - button [ref=e111] [cursor=pointer]:
+        - img [ref=e112]
+    - generic [ref=e115]:
+      - generic [ref=e116]:
+        - button "General" [ref=e117] [cursor=pointer]:
+          - img [ref=e118]
+          - text: General
+        - button "Scheduler" [ref=e119] [cursor=pointer]:
+          - img [ref=e120]
+          - text: Scheduler
+        - button "Network" [ref=e123] [cursor=pointer]:
+          - img [ref=e124]
+          - text: Network
+        - button "MCP Server" [active] [ref=e128] [cursor=pointer]:
+          - img [ref=e129]
+          - text: MCP Server
+        - button "Security" [ref=e132] [cursor=pointer]:
+          - img [ref=e133]
+          - text: Security
+      - generic [ref=e138]:
+        - generic [ref=e139]:
+          - img [ref=e141]
+          - generic [ref=e144]:
+            - heading "MCP Server & API" [level=3] [ref=e145]
+            - paragraph [ref=e146]: Enable the Model Context Protocol (MCP) server and HTTP Control API to allow AI agents to manage downloads.
+            - generic [ref=e147]:
+              - generic [ref=e148]:
+                - generic [ref=e149]: Status
+                - text: DISABLED
+              - generic [ref=e150]:
+                - generic [ref=e151]: Transport
+                - text: STDIN + HTTP
+        - checkbox [ref=e153]
+    - button "Save Changes" [ref=e156] [cursor=pointer]:
+      - img [ref=e157]
+      - text: Save Changes
+```
