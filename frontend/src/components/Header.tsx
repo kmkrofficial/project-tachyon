@@ -4,10 +4,12 @@ import { cn } from '../utils';
 
 interface HeaderProps {
     onAddDownload: () => void;
+    onPauseAll: () => void;
+    onResumeAll: () => void;
     globalSpeed?: number; // MB/s
 }
 
-export const Header: React.FC<HeaderProps> = ({ onAddDownload, globalSpeed = 0 }) => {
+export const Header: React.FC<HeaderProps> = ({ onAddDownload, onPauseAll, onResumeAll, globalSpeed = 0 }) => {
     return (
         <header className="h-16 fixed top-0 right-0 left-64 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 z-40 flex items-center justify-between px-6 dragging-header">
             {/* Left: Breadcrumbs / Title */}
@@ -29,10 +31,18 @@ export const Header: React.FC<HeaderProps> = ({ onAddDownload, globalSpeed = 0 }
                 <div className="h-6 w-px bg-slate-800"></div>
 
                 {/* Pause/Resume All */}
-                <button className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors" title="Resume All">
+                <button
+                    onClick={onResumeAll}
+                    className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                    title="Resume All"
+                >
                     <Play size={18} />
                 </button>
-                <button className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors" title="Pause All">
+                <button
+                    onClick={onPauseAll}
+                    className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                    title="Pause All"
+                >
                     <Pause size={18} />
                 </button>
 

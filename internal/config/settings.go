@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"project-tachyon/internal/storage"
+	"strconv"
 )
 
 // Keys for AppSettings in DB
@@ -11,6 +12,8 @@ const (
 	KeyEnableAIInterface    = "enable_ai_interface"
 	KeyAIToken              = "ai_token"
 	KeyEnableIntegrityCheck = "enable_integrity_check"
+	KeyAIPort               = "ai_port"
+	KeyAIMaxConcurrent      = "ai_max_concurrent"
 )
 
 type ConfigManager struct {
@@ -19,6 +22,38 @@ type ConfigManager struct {
 
 func NewConfigManager(s *storage.Storage) *ConfigManager {
 	return &ConfigManager{storage: s}
+}
+
+func (c *ConfigManager) GetAIPort() int {
+	valStr, err := c.storage.GetString(KeyAIPort)
+	if err != nil || valStr == "" {
+		return 4444 // Default
+	}
+	val, err := strconv.Atoi(valStr)
+	if err != nil {
+		return 4444
+	}
+	return val
+}
+
+func (c *ConfigManager) SetAIPort(port int) error {
+	return c.storage.SetString(KeyAIPort, strconv.Itoa(port))
+}
+
+func (c *ConfigManager) GetAIMaxConcurrent() int {
+	valStr, err := c.storage.GetString(KeyAIMaxConcurrent)
+	if err != nil || valStr == "" {
+		return 5 // Default
+	}
+	val, err := strconv.Atoi(valStr)
+	if err != nil {
+		return 5
+	}
+	return val
+}
+
+func (c *ConfigManager) SetAIMaxConcurrent(max int) error {
+	return c.storage.SetString(KeyAIMaxConcurrent, strconv.Itoa(max))
 }
 
 func (c *ConfigManager) GetEnableAI() bool {

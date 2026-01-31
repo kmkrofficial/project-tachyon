@@ -152,14 +152,8 @@ export function useTachyon() {
                     id = await App.AddDownloadWithOptions(url, path || "", filename || "");
 
                     // Also save the location if it's a custom path
-                    if (path && App.AddDownloadLocation) {
-                        // We can't easily ask for nickname here, so use basename
-                        // Maybe defer this to the UI? The UI called AddDownloadLocation?
-                        // Actually, AddURLModal should probably call AddDownloadLocation if it's new.
-                        // But let's leave it to the user explicitly adding it in settings or implementation details.
-                        // For now, if we use a path, maybe we should save it automatically?
-                        // Let's rely on AddURLModal to handle saving logic if we want "Saved Locations" dropdown to update.
-                    }
+                    // Logic for saving location removed as it's handled elsewhere or pending implementation
+
                 } else if (filename) {
                     // Fallback
                     id = await App.AddDownloadWithFilename(url, filename);

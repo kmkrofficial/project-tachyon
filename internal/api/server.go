@@ -9,16 +9,18 @@ import (
 	"project-tachyon/internal/config"
 	"project-tachyon/internal/core"
 	"project-tachyon/internal/security"
+	"sync/atomic"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
 
 type ControlServer struct {
-	engine *core.TachyonEngine
-	cfg    *config.ConfigManager
-	audit  *security.AuditLogger
-	router *chi.Mux
+	engine     *core.TachyonEngine
+	cfg        *config.ConfigManager
+	audit      *security.AuditLogger
+	router     *chi.Mux
+	activeReqs int64
 }
 
 func NewControlServer(engine *core.TachyonEngine, cfg *config.ConfigManager, audit *security.AuditLogger) *ControlServer {
@@ -30,6 +32,29 @@ func NewControlServer(engine *core.TachyonEngine, cfg *config.ConfigManager, aud
 	}
 	s.setupRoutes()
 	return s
+}
+
+// ... (Start and setupRoutes remain same, but Concurrency Middleware changes)
+
+func (s *ControlServer) concurrencyLimitMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		max := int64(s.cfg.GetAIMaxConcurrent())
+		if max <= 0 {
+			max = 1 // Safety default
+		}
+
+		// Increment and check
+		current := atomic.AddInt64(&s.activeReqs, 1)
+		defer atomic.AddInt64(&s.activeReqs, -1)
+
+		if current > max {
+			s.audit.Log("127.0.0.1", r.UserAgent(), "Overloaded "+r.URL.Path, 429, "Max Concurrent Reached")
+			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *ControlServer) Start(port int) {
@@ -61,6 +86,7 @@ func (s *ControlServer) setupRoutes() {
 
 	// Security Middleware Chain
 	s.router.Use(s.securityMiddleware)
+	s.router.Use(s.concurrencyLimitMiddleware)
 
 	s.router.Post("/v1/queue", s.handleQueueDownload)
 	s.router.Post("/v1/browser/trigger", s.handleBrowserTrigger)

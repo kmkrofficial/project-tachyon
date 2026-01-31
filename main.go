@@ -61,7 +61,7 @@ func main() {
 
 	// Initialize Control Server (background)
 	controlServer := api.NewControlServer(engine, cfg, audit)
-	controlServer.Start(4444)
+	controlServer.Start(cfg.GetAIPort())
 
 	// Deprecated API Server (Legacy) - Keeping commented out or removed to favor new ControlServer
 	// apiServer := core.NewAPIServer(log, engine, store)

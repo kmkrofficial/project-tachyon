@@ -37,6 +37,23 @@ func (DownloadTask) TableName() string {
 	return "download_tasks"
 }
 
+// PartState represents the state of a single download chunk
+type PartState struct {
+	Start    int64 `json:"s"`           // Start offset
+	End      int64 `json:"e"`           // End offset
+	Complete bool  `json:"c,omitempty"` // Is chunk fully downloaded and verified?
+	Offset   int64 `json:"o,omitempty"` // Current write offset relative to Start (for clean pause)
+}
+
+// ResumeState represents the serialized resume data
+type ResumeState struct {
+	Version      int               `json:"v"`
+	ETag         string            `json:"etag"`
+	LastModified string            `json:"lm"`
+	TotalSize    int64             `json:"total_size"`
+	Parts        map[int]PartState `json:"parts"`
+}
+
 // DownloadLocation stores saved download locations with nicknames
 type DownloadLocation struct {
 	Path     string `gorm:"primaryKey" json:"path"`

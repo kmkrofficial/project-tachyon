@@ -82,7 +82,14 @@ function App() {
             <div className="flex-1 flex flex-col ml-64 min-w-0 h-full">
 
                 {/* Fixed Header */}
-                <Header onAddDownload={() => setIsModalOpen(true)} globalSpeed={totalSpeed} />
+                <Header
+                    onAddDownload={() => setIsModalOpen(true)}
+                    // @ts-ignore
+                    onPauseAll={() => window.go.main.App.PauseAllDownloads()}
+                    // @ts-ignore
+                    onResumeAll={() => window.go.main.App.ResumeAllDownloads()}
+                    globalSpeed={totalSpeed}
+                />
 
                 {/* Scrollable Content Area */}
                 <main className="flex-1 overflow-y-auto pt-16 bg-slate-950 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">

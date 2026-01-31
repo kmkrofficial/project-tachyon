@@ -67,6 +67,24 @@ func (a *App) GetAIToken() string {
 	return a.cfg.GetAIToken()
 }
 
+func (a *App) GetAIPort() int {
+	return a.cfg.GetAIPort()
+}
+
+func (a *App) SetAIPort(port int) {
+	a.cfg.SetAIPort(port)
+	a.logger.Info("AI Port setting changed (requires restart)", "port", port)
+}
+
+func (a *App) GetAIMaxConcurrent() int {
+	return a.cfg.GetAIMaxConcurrent()
+}
+
+func (a *App) SetAIMaxConcurrent(max int) {
+	a.cfg.SetAIMaxConcurrent(max)
+	a.logger.Info("AI Max Concurrent setting changed", "max", max)
+}
+
 func (a *App) GetRecentAuditLogs() []security.AccessLogEntry {
 	if a.audit == nil {
 		return []security.AccessLogEntry{}
@@ -223,6 +241,18 @@ func (a *App) ResumeDownload(id string) error {
 		return err
 	}
 	return nil
+}
+
+// PauseAllDownloads pauses all downloads
+func (a *App) PauseAllDownloads() {
+	a.logger.Info("frontend_request", "method", "PauseAllDownloads")
+	a.engine.PauseAllDownloads()
+}
+
+// ResumeAllDownloads resumes all downloads
+func (a *App) ResumeAllDownloads() {
+	a.logger.Info("frontend_request", "method", "ResumeAllDownloads")
+	a.engine.ResumeAllDownloads()
 }
 
 // StopDownload stops a download permanently (can still be resumed manually)

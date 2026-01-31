@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Globe, Link2, FolderOpen, AlertTriangle, FileCheck, Copy, DownloadCloud, Loader2, Calendar, Clock } from 'lucide-react';
+import { X, Globe, Link2, FolderOpen, AlertTriangle, FileCheck, Copy, DownloadCloud, Loader2, Calendar, Clock, Settings2 } from 'lucide-react';
 import prettyBytes from 'pretty-bytes';
 
 interface AddURLModalProps {
@@ -25,6 +25,12 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
     // Schedule state
     const [scheduleTime, setScheduleTime] = useState("");
     const [enableSchedule, setEnableSchedule] = useState(false);
+
+    // Advanced Options
+    const [showAdvanced, setShowAdvanced] = useState(false);
+    const [headers, setHeaders] = useState("");
+    const [cookies, setCookies] = useState("");
+    const [userAgent, setUserAgent] = useState("");
 
     // Auto-paste URL from clipboard when modal opens
     useEffect(() => {
@@ -66,6 +72,10 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
         setShowPathInput(false);
         setEnableSchedule(false);
         setScheduleTime("");
+        setShowAdvanced(false);
+        setHeaders("");
+        setCookies("");
+        setUserAgent("");
     };
 
     const handleClose = () => {
@@ -119,6 +129,10 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
                 const date = new Date(scheduleTime);
                 options["start_time"] = date.toISOString();
             }
+
+            if (headers) options["headers"] = headers;
+            if (cookies) options["cookies"] = cookies;
+            if (userAgent) options["user_agent"] = userAgent;
 
             const result = await onAdd(url, finalFilename, size, downloadPath, options);
 
@@ -209,6 +223,52 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
                                 <div className="mt-3 p-3 bg-red-950/30 border border-red-900/50 rounded-lg flex items-center gap-2 text-red-400 text-xs">
                                     <AlertTriangle size={14} />
                                     <span>{error}</span>
+                                </div>
+                            )}
+
+                        </div>
+
+                        {/* Advanced Options Toggle */}
+                        <div>
+                            <button
+                                type="button"
+                                onClick={() => setShowAdvanced(!showAdvanced)}
+                                className="flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-slate-300 transition-colors uppercase tracking-wider"
+                            >
+                                <Settings2 size={14} />
+                                {showAdvanced ? "Hide Advanced Options" : "Show Advanced Options"}
+                            </button>
+
+                            {showAdvanced && (
+                                <div className="mt-4 space-y-4 p-4 bg-slate-950/50 rounded-xl border border-slate-800 animate-slide-down">
+                                    <div>
+                                        <label className="block text-xs text-slate-500 mb-1.5">User Agent</label>
+                                        <input
+                                            type="text"
+                                            className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-300 focus:outline-none focus:border-cyan-500 font-mono placeholder:text-slate-700"
+                                            placeholder="Mozilla/5.0..."
+                                            value={userAgent}
+                                            onChange={e => setUserAgent(e.target.value)}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-slate-500 mb-1.5">Referer / Custom Headers (JSON)</label>
+                                        <textarea
+                                            className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-300 focus:outline-none focus:border-cyan-500 font-mono h-20 placeholder:text-slate-700"
+                                            placeholder='{"Referer": "https://source.com", "Authorization": "Bearer..."}'
+                                            value={headers}
+                                            onChange={e => setHeaders(e.target.value)}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-slate-500 mb-1.5">Cookies</label>
+                                        <textarea
+                                            className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-300 focus:outline-none focus:border-cyan-500 font-mono h-20 placeholder:text-slate-700"
+                                            placeholder="key=value; key2=value2"
+                                            value={cookies}
+                                            onChange={e => setCookies(e.target.value)}
+                                        />
+                                    </div>
                                 </div>
                             )}
                         </div>
