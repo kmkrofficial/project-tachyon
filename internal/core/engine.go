@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"project-tachyon/internal/filesystem"
 	"project-tachyon/internal/queue"
+	"project-tachyon/internal/security"
 	"project-tachyon/internal/storage"
 	"sync"
 	"time"
@@ -77,6 +78,9 @@ type TachyonEngine struct {
 	// Phase 7 Components
 	stateManager         *StateManager
 	congestionController *CongestionController
+
+	// Security
+	scanner security.Scanner
 }
 
 func NewEngine(logger *slog.Logger, storage *storage.Storage) *TachyonEngine {
@@ -126,6 +130,7 @@ func NewEngine(logger *slog.Logger, storage *storage.Storage) *TachyonEngine {
 		organizer:            NewSmartOrganizer(),
 		stateManager:         NewStateManager(),
 		congestionController: NewCongestionController(1, 32),
+		scanner:              security.NewScanner(logger),
 	}
 	e.workerCond = sync.NewCond(&e.workerMutex)
 
@@ -1227,6 +1232,18 @@ Loop:
 		task.Downloaded = task.TotalSize
 		e.storage.SaveTask(*task)
 		e.logger.Info("Download Completed", "id", task.ID)
+
+		// Trigger native AV scan (non-blocking warning)
+		if scanErr := e.scanner.ScanFile(ctx, task.SavePath); scanErr != nil {
+			e.logger.Warn("AV scan warning", "id", task.ID, "error", scanErr)
+			if e.ctx != nil {
+				runtime.EventsEmit(e.ctx, "download:av_warning", map[string]interface{}{
+					"id":      task.ID,
+					"path":    task.SavePath,
+					"warning": scanErr.Error(),
+				})
+			}
+		}
 
 		// Update stats
 		e.stats.TrackFileCompleted()
