@@ -1,4 +1,4 @@
-package core
+package network
 
 import (
 	"sync"
@@ -15,6 +15,7 @@ type CongestionController struct {
 	maxWorkers int
 }
 
+// HostStats tracks per-host network statistics for congestion control
 type HostStats struct {
 	LastRTT      time.Duration
 	SmoothedRTT  time.Duration // SRTT
@@ -25,6 +26,7 @@ type HostStats struct {
 	ErrorCount   int
 }
 
+// NewCongestionController creates a controller with min/max worker bounds
 func NewCongestionController(min, max int) *CongestionController {
 	return &CongestionController{
 		hosts:      make(map[string]*HostStats),
@@ -77,14 +79,10 @@ func (cc *CongestionController) GetIdealConcurrency(host string) int {
 	// Check for errors (Naive "packet loss" equivalent)
 	if stats.ErrorCount > 0 {
 		// Multiplicative Decrease
-		stats.Concurrency = max(1, stats.Concurrency/2)
+		stats.Concurrency = maxInt(1, stats.Concurrency/2)
 		stats.ErrorCount = 0 // Reset after reacting
 		return stats.Concurrency
 	}
-
-	// Check for High Latency (Bufferbloat detection)
-	// If RTT is increasing significantly, hold or decrease
-	// For simplicity, let's stick to Additive Increase if stable.
 
 	// Additive Increase
 	// Increase if stable and we have successful samples
@@ -98,7 +96,21 @@ func (cc *CongestionController) GetIdealConcurrency(host string) int {
 	return stats.Concurrency
 }
 
-func max(a, b int) int {
+// GetHostStats returns a copy of stats for a host (for testing/monitoring)
+func (cc *CongestionController) GetHostStats(host string) *HostStats {
+	cc.mu.RLock()
+	defer cc.mu.RUnlock()
+
+	stats, ok := cc.hosts[host]
+	if !ok {
+		return nil
+	}
+	// Return a copy
+	copy := *stats
+	return &copy
+}
+
+func maxInt(a, b int) int {
 	if a > b {
 		return a
 	}

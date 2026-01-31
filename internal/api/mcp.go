@@ -6,18 +6,18 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"project-tachyon/internal/core"
+	"project-tachyon/internal/engine"
 	"sync"
 )
 
 // MCPServer implements a basic JSON-RPC 2.0 handler for Model Context Protocol
 // It listens on Stdin and writes to Stdout
 type MCPServer struct {
-	engine *core.TachyonEngine
+	engine *engine.TachyonEngine
 	mu     sync.Mutex
 }
 
-func NewMCPServer(engine *core.TachyonEngine) *MCPServer {
+func NewMCPServer(engine *engine.TachyonEngine) *MCPServer {
 	return &MCPServer{
 		engine: engine,
 	}
@@ -197,3 +197,4 @@ func (s *MCPServer) handleToolsList(req JsonRpcRequest) {
 		"tools": tools,
 	})
 }
+

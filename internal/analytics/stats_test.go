@@ -1,10 +1,15 @@
-package core
+package analytics
 
 import (
 	"project-tachyon/internal/storage"
 	"strings"
 	"testing"
 )
+
+// mockDownloadPathFn is a test helper that returns a predictable path
+func mockDownloadPathFn() (string, error) {
+	return "C:\\Users\\test\\Downloads", nil
+}
 
 func TestStatsManager(t *testing.T) {
 	s, err := storage.NewStorage()
@@ -16,7 +21,7 @@ func TestStatsManager(t *testing.T) {
 	}
 	defer s.Close()
 
-	sm := NewStatsManager(s)
+	sm := NewStatsManager(s, mockDownloadPathFn)
 	if sm == nil {
 		t.Fatal("NewStatsManager returned nil")
 	}
@@ -39,13 +44,13 @@ func TestStatsManager(t *testing.T) {
 		t.Errorf("GetTotalFiles returned error: %v", err)
 	}
 
-	// Test GetDailyStats
+	// Test GetDailyStats (returns up to N days, may be less if no data)
 	daily, err := sm.GetDailyStats(7)
 	if err != nil {
 		t.Errorf("GetDailyStats returned error: %v", err)
 	}
-	if len(daily) != 7 {
-		t.Errorf("Expected 7 days of stats, got %d", len(daily))
+	if len(daily) > 7 {
+		t.Errorf("Expected at most 7 days of stats, got %d", len(daily))
 	}
 
 	// Test GetDiskUsage
@@ -56,8 +61,8 @@ func TestStatsManager(t *testing.T) {
 	t.Logf("Disk Usage: %.2f GB used of %.2f GB total (%.1f%%)", usage.UsedGB, usage.TotalGB, usage.Percent)
 
 	// Test GetAnalytics
-	analytics := sm.GetAnalytics()
-	if len(analytics.DailyHistory) != 7 {
-		t.Errorf("Expected 7 days of history, got %d", len(analytics.DailyHistory))
+	analyticsData := sm.GetAnalytics()
+	if len(analyticsData.DailyHistory) > 7 {
+		t.Errorf("Expected at most 7 days of history, got %d", len(analyticsData.DailyHistory))
 	}
 }

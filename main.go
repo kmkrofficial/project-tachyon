@@ -8,7 +8,7 @@ import (
 	"project-tachyon/internal/api"
 	"project-tachyon/internal/app"
 	"project-tachyon/internal/config"
-	"project-tachyon/internal/core"
+	"project-tachyon/internal/engine"
 	"project-tachyon/internal/logger"
 	"project-tachyon/internal/security"
 	"project-tachyon/internal/storage"
@@ -56,18 +56,18 @@ func main() {
 	defer store.Close()
 
 	// Initialize Core Components
-	engine := core.NewEngine(log, store)
+	eng := engine.NewEngine(log, store)
 	cfg := config.NewConfigManager(store)
 	audit := security.NewAuditLogger(log)
 	defer audit.Close()
 
 	// Initialize Control Server (background)
-	controlServer := api.NewControlServer(engine, cfg, audit)
+	controlServer := api.NewControlServer(eng, cfg, audit)
 	controlServer.Start(cfg.GetAIPort())
 
 	// MCP Mode Execution
 	if mcpMode {
-		mcpServer := api.NewMCPServer(engine)
+		mcpServer := api.NewMCPServer(eng)
 		mcpServer.Start() // Blocking
 		return
 	}
@@ -75,10 +75,10 @@ func main() {
 	// GUI Mode (Wails)
 
 	// Create an instance of the app structure, injecting dependencies
-	application := app.NewApp(log, engine, wailsHandler, cfg, audit)
+	application := app.NewApp(log, eng, wailsHandler, cfg, audit)
 
 	// Handle standard OS signals (Ctrl+C) for graceful shutdown
-	core.WaitForSignals(func() {
+	engine.WaitForSignals(func() {
 		log.Info("OS Signal received, initiating shutdown...")
 		application.QuitApp()
 	})

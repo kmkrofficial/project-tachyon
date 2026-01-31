@@ -1,4 +1,4 @@
-package core
+package filesystem
 
 import (
 	"fmt"
@@ -69,7 +69,7 @@ func (o *SmartOrganizer) OrganizeFile(task *storage.DownloadTask) (string, error
 	}
 
 	targetPath := filepath.Join(targetDir, task.Filename)
-	targetPath = o.findAvailablePath(targetPath)
+	targetPath = o.FindAvailablePath(targetPath)
 
 	if err := os.Rename(task.SavePath, targetPath); err != nil {
 		return task.SavePath, fmt.Errorf("failed to move file: %w", err)
@@ -78,7 +78,11 @@ func (o *SmartOrganizer) OrganizeFile(task *storage.DownloadTask) (string, error
 	return targetPath, nil
 }
 
-func (o *SmartOrganizer) findAvailablePath(basePath string) string {
+func (o *SmartOrganizer) FindAvailablePath(basePath string) string {
+	return FindAvailablePath(basePath)
+}
+
+func FindAvailablePath(basePath string) string {
 	if _, err := os.Stat(basePath); os.IsNotExist(err) {
 		return basePath
 	}

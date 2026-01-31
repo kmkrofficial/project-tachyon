@@ -1,4 +1,4 @@
-package core
+package engine
 
 import (
 	"crypto/md5"
@@ -49,7 +49,7 @@ func spawnRangeServer(t *testing.T, content []byte, errorEveryN int) *httptest.S
 			return
 		}
 
-		// Handle HEAD (Probe)
+		// Handle HEAD (Probe) - Note: Our engine uses GET with Range for probing
 		if r.Method == "HEAD" {
 			w.Header().Set("Content-Length", strconv.Itoa(len(content)))
 			w.Header().Set("Accept-Ranges", "bytes")
@@ -74,6 +74,7 @@ func spawnRangeServer(t *testing.T, content []byte, errorEveryN int) *httptest.S
 				return
 			}
 
+			w.Header().Set("Accept-Ranges", "bytes")
 			w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, len(content)))
 			w.Header().Set("Content-Length", strconv.Itoa(end-start+1))
 			w.WriteHeader(http.StatusPartialContent)
@@ -85,6 +86,7 @@ func spawnRangeServer(t *testing.T, content []byte, errorEveryN int) *httptest.S
 
 		// Full Content
 		w.Header().Set("Content-Length", strconv.Itoa(len(content)))
+		w.Header().Set("Accept-Ranges", "bytes")
 		w.WriteHeader(http.StatusOK)
 		w.Write(content)
 	}))
@@ -115,6 +117,10 @@ func calculateMD5(path string) (string, error) {
 // --- Tests ---
 
 func TestDynamicWorkStealing(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
 	// Setup: 10MB Content
 	size := 10 * 1024 * 1024
 	content := generateDummyContent(size)
@@ -178,6 +184,10 @@ Loop:
 }
 
 func TestPauseAndResume(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
 	// Setup: 10MB Content (Enough to pause mid-way manually in real world, but in tests fast CPU might finish too fast)
 	// We'll use a larger file or rely on pausing quickly.
 	size := 10 * 1024 * 1024
@@ -254,6 +264,10 @@ Loop:
 }
 
 func TestNetworkFailureAndRetry(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
 	size := 5 * 1024 * 1024
 	content := generateDummyContent(size)
 	// Fail every 5th request
@@ -302,19 +316,21 @@ Loop:
 }
 
 func TestServerNoRanges(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
 	content := []byte("Simulated Single Thread Content")
 
 	// Mock Server that sends 200 OK and ignores ranges
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "HEAD" {
-			w.WriteHeader(http.StatusOK)
-			w.Header().Set("Content-Length", strconv.Itoa(len(content)))
-			// No Accept-Ranges header
-			return
-		}
-		// Return full content regardless of Range header
+		// Always set Content-Length header for size detection
+		w.Header().Set("Content-Length", strconv.Itoa(len(content)))
+		// NO Accept-Ranges header - simulate server that doesn't support ranges
 		w.WriteHeader(http.StatusOK)
-		w.Write(content)
+		if r.Method != "HEAD" {
+			w.Write(content)
+		}
 	}))
 	defer server.Close()
 

@@ -3,7 +3,7 @@ package app
 import (
 	"os"
 
-	"project-tachyon/internal/core"
+	"project-tachyon/internal/filesystem"
 	"project-tachyon/internal/storage"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -76,7 +76,7 @@ func (a *App) OpenFolder(id string) {
 	}
 
 	// Use OS Utils
-	if err := core.OpenFolder(task.SavePath); err != nil {
+	if err := filesystem.OpenFolder(task.SavePath); err != nil {
 		a.logger.Error("Failed to open folder", "path", task.SavePath, "error", err)
 	}
 }
@@ -93,7 +93,7 @@ func (a *App) OpenFile(id string) {
 		return
 	}
 
-	if err := core.OpenFile(task.SavePath); err != nil {
+	if err := filesystem.OpenFile(task.SavePath); err != nil {
 		a.logger.Error("Failed to open file", "path", task.SavePath, "error", err)
 	}
 }

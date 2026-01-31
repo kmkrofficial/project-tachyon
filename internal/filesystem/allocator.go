@@ -41,12 +41,22 @@ func (a *Allocator) AllocateFile(path string, size int64) error {
 func (a *Allocator) checkDiskSpace(path string, required int64) error {
 	dir := filepath.Dir(path)
 
+	// Ensure directory exists
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+
 	// Get volume usage
 	usage, err := disk.Usage(dir)
 	if err != nil {
-		// Fallback: If path doesn't exist yet, we might check volume of root?
-		// But disk.Usage works on directories.
-		return fmt.Errorf("failed to check disk space: %w", err)
+		// Fallback: try volume root on Windows
+		volPath := filepath.VolumeName(dir)
+		if volPath != "" {
+			usage, err = disk.Usage(volPath + "\\")
+		}
+		if err != nil {
+			return fmt.Errorf("failed to check disk space: %w", err)
+		}
 	}
 
 	// Add a buffer of 100MB for system stability

@@ -1,7 +1,7 @@
 package app
 
 import (
-	"project-tachyon/internal/core"
+	"project-tachyon/internal/integrity"
 	"project-tachyon/internal/security"
 )
 
@@ -57,7 +57,7 @@ func (a *App) GetRecentAuditLogs() []security.AccessLogEntry {
 // algorithm should be "sha256" or "md5"
 func (a *App) CalculateHash(filePath string, algorithm string) (string, error) {
 	a.logger.Info("frontend_request", "method", "CalculateHash", "path", filePath, "algorithm", algorithm)
-	return core.CalculateHash(filePath, algorithm)
+	return integrity.CalculateHash(filePath, algorithm)
 }
 
 // GetUserAgent returns the current custom User-Agent

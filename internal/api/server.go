@@ -7,7 +7,7 @@ import (
 	"net"
 	"net/http"
 	"project-tachyon/internal/config"
-	"project-tachyon/internal/core"
+	"project-tachyon/internal/engine"
 	"project-tachyon/internal/security"
 	"sync/atomic"
 
@@ -16,14 +16,14 @@ import (
 )
 
 type ControlServer struct {
-	engine     *core.TachyonEngine
+	engine     *engine.TachyonEngine
 	cfg        *config.ConfigManager
 	audit      *security.AuditLogger
 	router     *chi.Mux
 	activeReqs int64
 }
 
-func NewControlServer(engine *core.TachyonEngine, cfg *config.ConfigManager, audit *security.AuditLogger) *ControlServer {
+func NewControlServer(engine *engine.TachyonEngine, cfg *config.ConfigManager, audit *security.AuditLogger) *ControlServer {
 	s := &ControlServer{
 		engine: engine,
 		cfg:    cfg,
@@ -215,3 +215,4 @@ func (s *ControlServer) handleTaskControl(w http.ResponseWriter, r *http.Request
 func (s *ControlServer) handleGetStatus(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"status": "running"}`))
 }
+

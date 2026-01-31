@@ -7,7 +7,7 @@ import (
 	"log/slog"
 
 	"project-tachyon/internal/config"
-	"project-tachyon/internal/core"
+	"project-tachyon/internal/engine"
 	"project-tachyon/internal/logger"
 	"project-tachyon/internal/security"
 
@@ -20,7 +20,7 @@ type App struct {
 	ctx          context.Context
 	logger       *slog.Logger
 	wailsHandler *logger.WailsHandler
-	engine       *core.TachyonEngine
+	engine       *engine.TachyonEngine
 	cfg          *config.ConfigManager
 	audit        *security.AuditLogger
 	isQuitting   bool
@@ -29,7 +29,7 @@ type App struct {
 // NewApp creates a new App application struct with all dependencies injected.
 func NewApp(
 	logger *slog.Logger,
-	engine *core.TachyonEngine,
+	engine *engine.TachyonEngine,
 	wailsHandler *logger.WailsHandler,
 	cfg *config.ConfigManager,
 	audit *security.AuditLogger,
@@ -96,3 +96,4 @@ func (a *App) ShowApp() {
 func (a *App) GetContext() context.Context {
 	return a.ctx
 }
+

@@ -1,7 +1,8 @@
 package app
 
 import (
-	"project-tachyon/internal/core"
+	"project-tachyon/internal/analytics"
+	"project-tachyon/internal/network"
 	"project-tachyon/internal/storage"
 	"project-tachyon/internal/updater"
 
@@ -9,9 +10,9 @@ import (
 )
 
 // RunNetworkSpeedTest performs a network speed test with live updates
-func (a *App) RunNetworkSpeedTest() *core.SpeedTestResult {
+func (a *App) RunNetworkSpeedTest() *network.SpeedTestResult {
 	// Emit phase updates to frontend during speed test
-	onPhase := func(phase core.SpeedTestPhase) {
+	onPhase := func(phase network.SpeedTestPhase) {
 		runtime.EventsEmit(a.ctx, "speedtest:phase", map[string]interface{}{
 			"phase":         phase.Phase,
 			"ping_ms":       phase.PingMs,
@@ -22,7 +23,7 @@ func (a *App) RunNetworkSpeedTest() *core.SpeedTestResult {
 		})
 	}
 
-	res, err := core.RunSpeedTestWithEvents(onPhase)
+	res, err := network.RunSpeedTestWithEvents(onPhase)
 	if err != nil {
 		a.logger.Error("Speed test failed", "error", err)
 		runtime.EventsEmit(a.ctx, "speedtest:phase", map[string]interface{}{
@@ -71,19 +72,19 @@ func (a *App) GetLifetimeStats() int64 {
 }
 
 // GetAnalytics returns comprehensive analytics data including disk usage
-func (a *App) GetAnalytics() core.AnalyticsData {
+func (a *App) GetAnalytics() analytics.AnalyticsData {
 	stats := a.engine.GetStats()
 	if stats == nil {
-		return core.AnalyticsData{}
+		return analytics.AnalyticsData{}
 	}
 	return stats.GetAnalytics()
 }
 
 // GetDiskUsage returns disk space info for the download drive
-func (a *App) GetDiskUsage() core.DiskUsageInfo {
+func (a *App) GetDiskUsage() analytics.DiskUsageInfo {
 	stats := a.engine.GetStats()
 	if stats == nil {
-		return core.DiskUsageInfo{}
+		return analytics.DiskUsageInfo{}
 	}
 	return stats.GetDiskUsage()
 }

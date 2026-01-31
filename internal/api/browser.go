@@ -3,7 +3,8 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"project-tachyon/internal/core"
+	"project-tachyon/internal/engine"
+	"project-tachyon/internal/filesystem"
 )
 
 type BrowserParams struct {
@@ -62,7 +63,7 @@ func (s *ControlServer) handleBrowserTrigger(w http.ResponseWriter, r *http.Requ
 	if params.UserAgent != "" {
 		headers["User-Agent"] = params.UserAgent
 	} else {
-		headers["User-Agent"] = core.GenericUserAgent
+		headers["User-Agent"] = engine.GenericUserAgent
 	}
 	if params.Referer != "" {
 		headers["Referer"] = params.Referer
@@ -76,7 +77,7 @@ func (s *ControlServer) handleBrowserTrigger(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Determine Save Path
-	defaultPath, err := core.GetDefaultDownloadPath()
+	defaultPath, err := filesystem.GetDefaultDownloadPath()
 	if err != nil {
 		// Fallback
 		defaultPath = "."
@@ -106,3 +107,4 @@ func ParseCookieString(raw string) []*http.Cookie {
 	req := http.Request{Header: header}
 	return req.Cookies()
 }
+

@@ -1,7 +1,8 @@
 package app
 
 import (
-	"project-tachyon/internal/core"
+	"project-tachyon/internal/engine"
+	"project-tachyon/internal/filesystem"
 	"project-tachyon/internal/storage"
 )
 
@@ -10,7 +11,7 @@ func (a *App) AddDownload(url string) string {
 	a.logger.Info("frontend_request", "method", "AddDownload", "url", url)
 
 	// Use Tachyon Downloads folder (auto-created with subfolders)
-	defaultPath, err := core.GetDefaultDownloadPath()
+	defaultPath, err := filesystem.GetDefaultDownloadPath()
 	if err != nil {
 		a.logger.Error("Failed to get default download path", "error", err)
 		return "ERROR: " + err.Error()
@@ -29,7 +30,7 @@ func (a *App) AddDownload(url string) string {
 func (a *App) AddDownloadWithFilename(url, filename string) string {
 	a.logger.Info("frontend_request", "method", "AddDownloadWithFilename", "url", url, "filename", filename)
 
-	defaultPath, err := core.GetDefaultDownloadPath()
+	defaultPath, err := filesystem.GetDefaultDownloadPath()
 	if err != nil {
 		a.logger.Error("Failed to get default download path", "error", err)
 		return "ERROR: " + err.Error()
@@ -50,7 +51,7 @@ func (a *App) AddDownloadWithOptions(url, path, filename string) string {
 
 	if path == "" {
 		var err error
-		path, err = core.GetDefaultDownloadPath()
+		path, err = filesystem.GetDefaultDownloadPath()
 		if err != nil {
 			a.logger.Error("Failed to get default download path", "error", err)
 			return "ERROR: " + err.Error()
@@ -72,7 +73,7 @@ func (a *App) AddDownloadWithParams(url, path, filename string, options map[stri
 
 	if path == "" {
 		var err error
-		path, err = core.GetDefaultDownloadPath()
+		path, err = filesystem.GetDefaultDownloadPath()
 		if err != nil {
 			a.logger.Error("Failed to get default download path", "error", err)
 			return "ERROR: " + err.Error()
@@ -195,7 +196,7 @@ func (a *App) GetHostLimit(domain string) int {
 }
 
 // ProbeURL checks the URL metadata before downloading
-func (a *App) ProbeURL(url string) (*core.ProbeResult, error) {
+func (a *App) ProbeURL(url string) (*engine.ProbeResult, error) {
 	res, err := a.engine.ProbeURL(url, "", "")
 	if err != nil {
 		a.logger.Error("Probe failed", "url", url, "error", err)
@@ -227,3 +228,4 @@ func (a *App) CheckCollision(filename string) CollisionResult {
 	}
 	return CollisionResult{Exists: exists, Path: path}
 }
+

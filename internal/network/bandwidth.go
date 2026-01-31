@@ -1,4 +1,6 @@
-package core
+// Package network provides bandwidth management and congestion control
+// for download operations.
+package network
 
 import (
 	"context"
@@ -19,6 +21,7 @@ type BandwidthManager struct {
 	taskPriorities map[string]int
 }
 
+// NewBandwidthManager creates a new bandwidth manager with no limits
 func NewBandwidthManager() *BandwidthManager {
 	return &BandwidthManager{
 		// Default to strict limit initially, but enabled=false bypasses it
@@ -40,6 +43,7 @@ func (bm *BandwidthManager) SetLimit(bytesPerSec int) {
 	}
 }
 
+// SetTaskPriority sets the priority for a specific task
 func (bm *BandwidthManager) SetTaskPriority(taskID string, priority int) {
 	bm.mu.Lock()
 	defer bm.mu.Unlock()
@@ -73,16 +77,6 @@ func (bm *BandwidthManager) Wait(ctx context.Context, taskID string, bytes int) 
 
 	if priority == 1 {
 		// Artificial delay for low priority tasks to yield to high priority ones
-		// checking limiter usage would be better but rate.Limiter doesn't expose "Backlog" easily
-		// Simple approach: sleep a tiny bit proportional to chunk size?
-		// Better: If we had to wait long, sleep more?
-		// For MVP, just a fixed micro-cost to deprioritize
-		// time.Sleep(1 * time.Millisecond)
-		// Actually, standard RateLimiter ensures fairness, so strict priority needs weighted token bucket
-		// or multiple limiters.
-		// Given constraint "Wait + Micro-sleep", we apply it.
-		// Only sleep if we are actually close to limit?
-		// Let's adhere to "Wait AND inject a micro-sleep" logic requested.
 		time.Sleep(10 * time.Millisecond)
 	}
 

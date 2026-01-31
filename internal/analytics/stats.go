@@ -1,10 +1,12 @@
-package core
+// Package analytics provides download statistics and disk usage tracking.
+package analytics
 
 import (
 	"path/filepath"
-	"project-tachyon/internal/storage"
 	"sync"
 	"sync/atomic"
+
+	"project-tachyon/internal/storage"
 
 	"github.com/shirou/gopsutil/v3/disk"
 )
@@ -25,17 +27,21 @@ type AnalyticsData struct {
 	DiskUsage       DiskUsageInfo    `json:"disk_usage"`
 }
 
+// StatsManager tracks download statistics and analytics
 type StatsManager struct {
-	storage      *storage.Storage
-	mu           sync.Mutex
-	cache        map[string]interface{}
-	currentSpeed int64 // Atomic
+	storage        *storage.Storage
+	mu             sync.Mutex
+	cache          map[string]interface{}
+	currentSpeed   int64 // Atomic
+	downloadPathFn func() (string, error)
 }
 
-func NewStatsManager(s *storage.Storage) *StatsManager {
+// NewStatsManager creates a stats manager with storage backend
+func NewStatsManager(s *storage.Storage, downloadPathFn func() (string, error)) *StatsManager {
 	return &StatsManager{
-		storage: s,
-		cache:   make(map[string]interface{}),
+		storage:        s,
+		cache:          make(map[string]interface{}),
+		downloadPathFn: downloadPathFn,
 	}
 }
 
@@ -90,8 +96,12 @@ func (sm *StatsManager) GetDailyStats(days int) (map[string]int64, error) {
 
 // GetDiskUsage returns disk space info for the download drive
 func (sm *StatsManager) GetDiskUsage() DiskUsageInfo {
+	if sm.downloadPathFn == nil {
+		return DiskUsageInfo{}
+	}
+
 	// Get the default download path to determine the drive
-	downloadPath, err := GetDefaultDownloadPath()
+	downloadPath, err := sm.downloadPathFn()
 	if err != nil {
 		return DiskUsageInfo{} // Return zeros on error
 	}
