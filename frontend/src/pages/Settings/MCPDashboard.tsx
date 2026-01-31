@@ -10,30 +10,30 @@ export const MCPDashboard: React.FC = () => {
     const [showRestartWarning, setShowRestartWarning] = useState(false);
 
     useEffect(() => {
-        if (window.go?.main?.App) {
-            window.go.main.App.GetEnableAI().then(setEnabled);
-            window.go.main.App.GetAIPort().then(setPort);
-            window.go.main.App.GetAIMaxConcurrent().then(setMaxConcurrent);
-            window.go.main.App.GetAIToken().then(setToken);
+        if (window.go?.app?.App) {
+            window.go.app.App.GetEnableAI().then(setEnabled);
+            window.go.app.App.GetAIPort().then(setPort);
+            window.go.app.App.GetAIMaxConcurrent().then(setMaxConcurrent);
+            window.go.app.App.GetAIToken().then(setToken);
         }
     }, []);
 
     const handleEnableChange = (checked: boolean) => {
         setEnabled(checked);
-        window.go?.main?.App?.SetEnableAI(checked);
+        window.go?.app?.App?.SetEnableAI(checked);
     };
 
     const handlePortChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = parseInt(e.target.value);
         setPort(val);
-        window.go?.main?.App?.SetAIPort(val);
+        window.go?.app?.App?.SetAIPort(val);
         setShowRestartWarning(true);
     };
 
     const handleConcurrentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = parseInt(e.target.value);
         setMaxConcurrent(val);
-        window.go?.main?.App?.SetAIMaxConcurrent(val);
+        window.go?.app?.App?.SetAIMaxConcurrent(val);
     };
 
     const copyToken = () => {

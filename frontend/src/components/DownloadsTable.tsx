@@ -123,7 +123,7 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
 
     const handlePause = useCallback(async (id: string) => {
         try {
-            await window.go.main.App.PauseDownload(id);
+            await window.go.app.App.PauseDownload(id);
         } catch (e) {
             console.error(e);
         }
@@ -131,7 +131,7 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
 
     const handleResume = useCallback(async (id: string) => {
         try {
-            await window.go.main.App.ResumeDownload(id);
+            await window.go.app.App.ResumeDownload(id);
         } catch (e: any) {
             console.error(e);
             addToast('error', 'Resume Failed', typeof e === 'string' ? e : e.message);
@@ -140,7 +140,7 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
 
     const handleStop = useCallback(async (id: string) => {
         try {
-            await window.go.main.App.StopDownload(id);
+            await window.go.app.App.StopDownload(id);
         } catch (e) {
             console.error(e);
         }
@@ -148,7 +148,7 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
 
     const handleRetry = useCallback(async (url: string) => {
         try {
-            await window.go.main.App.AddDownload(url);
+            await window.go.app.App.AddDownload(url);
             addToast('info', 'Re-downloading', 'Added download back to queue');
         } catch (e: any) {
             console.error(e);
@@ -158,7 +158,7 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
 
     const handleDelete = async (id: string, withFile: boolean) => {
         try {
-            await window.go.main.App.DeleteDownload(id, withFile);
+            await window.go.app.App.DeleteDownload(id, withFile);
             // If we are here, it was successful or returned void
             // But if backend throws error, it goes to catch
             setDeleteConfirmId(null);

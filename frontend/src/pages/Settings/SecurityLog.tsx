@@ -27,9 +27,9 @@ export const SecurityLog: React.FC = () => {
     const scrollRef = useRef<HTMLDivElement>(null);
 
     const fetchLogs = async () => {
-        if (window.go?.main?.App?.GetRecentAuditLogs) {
+        if (window.go?.app?.App?.GetRecentAuditLogs) {
             try {
-                const data = await window.go.main.App.GetRecentAuditLogs();
+                const data = await window.go.app.App.GetRecentAuditLogs();
                 setLogs(data || []);
             } catch (err) {
                 console.error("Failed to fetch audit logs", err);
@@ -164,7 +164,7 @@ export const SecurityLog: React.FC = () => {
                                         <div className="w-16 shrink-0 flex items-center gap-1">
                                             {getStatusIcon(scan.status)}
                                             <span className={`text-xs ${scan.status === 'clean' ? 'text-green-500' :
-                                                    scan.status === 'threat' ? 'text-red-500' : 'text-yellow-500'
+                                                scan.status === 'threat' ? 'text-red-500' : 'text-yellow-500'
                                                 }`}>
                                                 {scan.status}
                                             </span>

@@ -27,8 +27,8 @@ export const Header: React.FC<HeaderProps> = ({ onAddDownload, onPauseAll, onRes
         EventsOn("network:congestion_level", handleNetworkHealth);
 
         // Poll initial network health
-        if (window.go?.main?.App?.GetNetworkHealth) {
-            window.go.main.App.GetNetworkHealth().then(setNetworkHealth).catch(console.error);
+        if (window.go?.app?.App?.GetNetworkHealth) {
+            window.go.app.App.GetNetworkHealth().then(setNetworkHealth).catch(console.error);
         }
 
         return () => {

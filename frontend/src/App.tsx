@@ -85,9 +85,9 @@ function App() {
                 <Header
                     onAddDownload={() => setIsModalOpen(true)}
                     // @ts-ignore
-                    onPauseAll={() => window.go.main.App.PauseAllDownloads()}
+                    onPauseAll={() => window.go.app.App.PauseAllDownloads()}
                     // @ts-ignore
-                    onResumeAll={() => window.go.main.App.ResumeAllDownloads()}
+                    onResumeAll={() => window.go.app.App.ResumeAllDownloads()}
                     globalSpeed={totalSpeed}
                 />
 

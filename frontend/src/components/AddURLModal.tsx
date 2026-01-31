@@ -37,9 +37,9 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
         if (isOpen) {
             // Load saved locations
             // @ts-ignore
-            if (window.go?.main?.App?.GetDownloadLocations) {
+            if (window.go?.app?.App?.GetDownloadLocations) {
                 // @ts-ignore
-                window.go.main.App.GetDownloadLocations().then((locs: any) => {
+                window.go.app.App.GetDownloadLocations().then((locs: any) => {
                     setSavedLocations(locs || []);
                 });
             }
@@ -93,7 +93,7 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
         try {
             // 1. Probe
             // @ts-ignore
-            const data = await window.go.main.App.ProbeURL(url);
+            const data = await window.go.app.App.ProbeURL(url);
             if (data.status >= 400) {
                 throw new Error(`Server returned HTTP ${data.status}`);
             }
@@ -101,12 +101,12 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
 
             // 2. History Check
             // @ts-ignore
-            const hasHistory = await window.go.main.App.CheckHistory(url);
+            const hasHistory = await window.go.app.App.CheckHistory(url);
             setHistoryConflict(hasHistory);
 
             // 3. Collision Check
             // @ts-ignore
-            const collision = await window.go.main.App.CheckCollision(data.filename);
+            const collision = await window.go.app.App.CheckCollision(data.filename);
             setFileConflict(collision);
 
             setStep('confirm');
@@ -162,7 +162,7 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
             const candidate = `${name}_${i}${ext}`;
             try {
                 // @ts-ignore
-                const collision = await window.go.main.App.CheckCollision(candidate);
+                const collision = await window.go.app.App.CheckCollision(candidate);
                 if (!collision.exists) return candidate;
             } catch (e) {
                 return `${name}_${Date.now()}${ext}`;

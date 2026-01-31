@@ -20,8 +20,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
     const handleSave = () => {
         // ... (rest of handleSave)
-        if (window.go?.main?.App?.SetMaxConcurrentDownloads) {
-            window.go.main.App.SetMaxConcurrentDownloads(settings.maxConcurrentDownloads);
+        if (window.go?.app?.App?.SetMaxConcurrentDownloads) {
+            window.go.app.App.SetMaxConcurrentDownloads(settings.maxConcurrentDownloads);
         }
         // ...
         onClose();
