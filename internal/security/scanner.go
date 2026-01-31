@@ -50,7 +50,7 @@ func NewWindowsDefenderScanner(logger *slog.Logger) *WindowsDefenderScanner {
 	return &WindowsDefenderScanner{
 		logger:      logger,
 		execCommand: defaultExecCommand,
-		timeout:     60 * time.Second, // 60 second timeout for large files
+		timeout:     300 * time.Second, // 5 minute timeout for large files
 	}
 }
 
@@ -187,7 +187,7 @@ func NewClamAVScanner(logger *slog.Logger, host string) *ClamAVScanner {
 	return &ClamAVScanner{
 		logger:   logger,
 		host:     host,
-		timeout:  60 * time.Second,
+		timeout:  300 * time.Second,
 		dialFunc: dialer.DialContext,
 	}
 }
