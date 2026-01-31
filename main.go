@@ -4,6 +4,7 @@ import (
 	"embed"
 	"io"
 	"os"
+	"runtime"
 
 	"project-tachyon/internal/api"
 	"project-tachyon/internal/app"
@@ -94,7 +95,11 @@ func main() {
 	// Start System Tray (Run in goroutine for Windows)
 	go func() {
 		systray.Run(func() {
-			systray.SetIcon(appIcon) // AppIcon embedded below
+			icon := appIcon
+			if runtime.GOOS == "windows" {
+				icon = appIconIco
+			}
+			systray.SetIcon(icon)
 			systray.SetTitle("Tachyon")
 			systray.SetTooltip("Project Tachyon")
 
@@ -153,3 +158,6 @@ func main() {
 
 //go:embed build/appicon.png
 var appIcon []byte
+
+//go:embed build/windows/icon.ico
+var appIconIco []byte
