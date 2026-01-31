@@ -14,6 +14,7 @@ const (
 	KeyEnableIntegrityCheck = "enable_integrity_check"
 	KeyAIPort               = "ai_port"
 	KeyAIMaxConcurrent      = "ai_max_concurrent"
+	KeyUserAgent            = "user_agent"
 )
 
 type ConfigManager struct {
@@ -106,4 +107,19 @@ func generateSecureToken() string {
 		return "tachyon-fallback-token-change-me"
 	}
 	return hex.EncodeToString(b)
+}
+
+// GetUserAgent returns the custom User-Agent string
+// Returns empty string if not set (caller should use default)
+func (c *ConfigManager) GetUserAgent() string {
+	val, err := c.storage.GetString(KeyUserAgent)
+	if err != nil {
+		return "" // Use default
+	}
+	return val
+}
+
+// SetUserAgent stores a custom User-Agent string
+func (c *ConfigManager) SetUserAgent(ua string) error {
+	return c.storage.SetString(KeyUserAgent, ua)
 }

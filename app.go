@@ -515,6 +515,21 @@ func (a *App) CalculateHash(filePath string, algorithm string) (string, error) {
 	return core.CalculateHash(filePath, algorithm)
 }
 
+// GetUserAgent returns the current custom User-Agent
+func (a *App) GetUserAgent() string {
+	return a.engine.GetUserAgent()
+}
+
+// SetUserAgent sets a custom User-Agent for all downloads
+func (a *App) SetUserAgent(userAgent string) {
+	a.logger.Info("frontend_request", "method", "SetUserAgent", "user_agent", userAgent)
+	a.engine.SetUserAgent(userAgent)
+	// Persist to config
+	if a.cfg != nil {
+		a.cfg.SetUserAgent(userAgent)
+	}
+}
+
 // GetAnalytics returns comprehensive analytics data including disk usage
 func (a *App) GetAnalytics() core.AnalyticsData {
 	stats := a.engine.GetStats()

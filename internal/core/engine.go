@@ -91,6 +91,10 @@ type TachyonEngine struct {
 
 	// Security
 	scanner security.Scanner
+
+	// Custom User-Agent (thread-safe)
+	userAgentMu sync.RWMutex
+	userAgent   string
 }
 
 func NewEngine(logger *slog.Logger, storage *storage.Storage) *TachyonEngine {
@@ -225,6 +229,21 @@ func (e *TachyonEngine) RecoverInterruptedDownloads() {
 
 func (e *TachyonEngine) GetStorage() *storage.Storage {
 	return e.storage
+}
+
+// GetUserAgent returns the current custom User-Agent (thread-safe)
+func (e *TachyonEngine) GetUserAgent() string {
+	e.userAgentMu.RLock()
+	defer e.userAgentMu.RUnlock()
+	return e.userAgent
+}
+
+// SetUserAgent sets a custom User-Agent for all requests (thread-safe)
+func (e *TachyonEngine) SetUserAgent(ua string) {
+	e.userAgentMu.Lock()
+	defer e.userAgentMu.Unlock()
+	e.userAgent = ua
+	e.logger.Info("User-Agent updated", "user_agent", ua)
 }
 
 func (e *TachyonEngine) GetHistory() ([]storage.Task, error) {
@@ -773,7 +792,13 @@ func (e *TachyonEngine) newRequest(method, urlStr string, headersStr string, coo
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", GenericUserAgent)
+
+	// Use custom User-Agent if set, otherwise use default
+	userAgent := e.GetUserAgent()
+	if userAgent == "" {
+		userAgent = GenericUserAgent
+	}
+	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Accept", "*/*")
 	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
 	req.Header.Set("Connection", "keep-alive")
