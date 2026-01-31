@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 // @ts-ignore
 import { EventsOn, EventsOff } from "../../wailsjs/runtime/runtime";
 // @ts-ignore
-import * as App from "../../wailsjs/go/main/App";
+import * as App from "../../wailsjs/go/app/App";
 import prettyBytes from 'pretty-bytes';
 
 import { DownloadItem } from "../types";

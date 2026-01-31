@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Play, Download, Upload, Activity, Server, Clock, Wifi } from 'lucide-react';
 // @ts-ignore
-import { RunNetworkSpeedTest, GetSpeedTestHistory } from '../../wailsjs/go/main/App';
+import { RunNetworkSpeedTest, GetSpeedTestHistory } from '../../wailsjs/go/app/App';
 // @ts-ignore
 import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime';
 
