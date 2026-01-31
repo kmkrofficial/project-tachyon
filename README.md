@@ -319,6 +319,204 @@ See [docs/security.md](docs/security.md) for security architecture details.
 
 ---
 
+## Self-Hosting
+
+Tachyon can be self-hosted as a headless download server, controlled via the MCP API.
+
+### Docker Deployment
+
+```dockerfile
+# Dockerfile
+FROM golang:1.22-alpine AS builder
+
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 go build -o tachyon-server ./cmd/server
+
+FROM alpine:3.19
+RUN apk add --no-cache ca-certificates
+COPY --from=builder /app/tachyon-server /usr/local/bin/
+EXPOSE 8765
+CMD ["tachyon-server"]
+```
+
+```bash
+# Build and run
+docker build -t tachyon-server .
+docker run -d \
+  --name tachyon \
+  -p 8765:8765 \
+  -v /path/to/downloads:/downloads \
+  -v /path/to/data:/data \
+  -e TACHYON_AI_TOKEN=your-secret-token \
+  -e TACHYON_DOWNLOAD_PATH=/downloads \
+  tachyon-server
+```
+
+### Docker Compose
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+
+services:
+  tachyon:
+    build: .
+    container_name: tachyon-server
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    volumes:
+      - ./downloads:/downloads
+      - ./data:/data
+    environment:
+      - TACHYON_AI_TOKEN=${TACHYON_AI_TOKEN:-changeme}
+      - TACHYON_DOWNLOAD_PATH=/downloads
+      - TACHYON_MAX_CONCURRENT=5
+      - TACHYON_GLOBAL_LIMIT=0
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8765/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+```
+
+```bash
+# Start with Docker Compose
+docker-compose up -d
+
+# View logs
+docker-compose logs -f tachyon
+```
+
+### Kubernetes Deployment
+
+```yaml
+# tachyon-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tachyon
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tachyon
+  template:
+    metadata:
+      labels:
+        app: tachyon
+    spec:
+      containers:
+      - name: tachyon
+        image: tachyon-server:latest
+        ports:
+        - containerPort: 8765
+        env:
+        - name: TACHYON_AI_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: tachyon-secrets
+              key: api-token
+        volumeMounts:
+        - name: downloads
+          mountPath: /downloads
+      volumes:
+      - name: downloads
+        persistentVolumeClaim:
+          claimName: tachyon-downloads-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tachyon-service
+spec:
+  selector:
+    app: tachyon
+  ports:
+  - port: 8765
+    targetPort: 8765
+  type: ClusterIP
+```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TACHYON_AI_TOKEN` | (random) | API authentication token |
+| `TACHYON_AI_PORT` | 8765 | MCP server port |
+| `TACHYON_DOWNLOAD_PATH` | `/downloads` | Default download directory |
+| `TACHYON_MAX_CONCURRENT` | 3 | Max simultaneous downloads |
+| `TACHYON_GLOBAL_LIMIT` | 0 | Bandwidth limit in bytes/sec (0 = unlimited) |
+| `TACHYON_LOG_LEVEL` | info | Log level (debug, info, warn, error) |
+
+### Reverse Proxy (Nginx)
+
+```nginx
+# /etc/nginx/sites-available/tachyon
+server {
+    listen 443 ssl http2;
+    server_name downloads.yourdomain.com;
+
+    ssl_certificate /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
+
+    location / {
+        proxy_pass http://localhost:8765;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Increase timeouts for large downloads
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+}
+```
+
+### Reverse Proxy (Caddy)
+
+```caddyfile
+# Caddyfile
+downloads.yourdomain.com {
+    reverse_proxy localhost:8765
+}
+```
+
+### API Usage Example
+
+```bash
+# Add a download
+curl -X POST http://localhost:8765/api/downloads \
+  -H "Authorization: Bearer your-secret-token" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/file.zip", "filename": "file.zip"}'
+
+# List downloads
+curl http://localhost:8765/api/downloads \
+  -H "Authorization: Bearer your-secret-token"
+
+# Pause a download
+curl -X POST http://localhost:8765/api/downloads/{id}/pause \
+  -H "Authorization: Bearer your-secret-token"
+```
+
+### Monitoring
+
+For production deployments, consider:
+- **Prometheus**: Expose `/metrics` endpoint for scraping
+- **Grafana**: Visualize download statistics
+- **Uptime Kuma**: Monitor server health
+- **Watchtower**: Auto-update Docker containers
+
+---
+
 ## Contributing
 
 1. Fork the repository
