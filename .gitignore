@@ -1,33 +1,129 @@
-# Wails & Build
-build/bin/
-build/wails_build_internal
+# ================================
+# Wails & Build Artifacts
+# ================================
+build/
 frontend/dist/
 frontend/node_modules/
 frontend/wailsjs/
 
-# App Data (CRITICAL)
+# ================================
+# Application Data (CRITICAL)
+# ================================
+# Database files
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+tachyon.db*
+
+# Old BadgerDB (deprecated)
 internal/storage/badger_data/
+
+# Logs
 logs/
 *.log
+
+# Config (may contain tokens)
+config.json
 app.json
 
-# IDEs & System
+# ================================
+# IDE & Editor Files
+# ================================
 .vscode/
 .idea/
 .cursor/
-.DS_Store
-Thumbs.db
+*.swp
+*.swo
+*~
+.project
+.settings/
+*.sublime-*
 
-# Binaries
+# ================================
+# OS-Specific Files
+# ================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ================================
+# Go Build & Test
+# ================================
 *.exe
+*.exe~
 *.dll
 *.so
 *.dylib
-*.syso
-
-# Go
 *.test
+*.out
+*.prof
 __debug_bin*
+coverage.out
+coverage.html
+*.syso
+vendor/
 
-# Misc
-wails.json
+# ================================
+# Node.js
+# ================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm/
+.yarn/
+.pnpm-store/
+
+# ================================
+# Testing & Coverage
+# ================================
+*.cover
+coverage/
+.nyc_output/
+junit.xml
+test-results/
+
+# ================================
+# Security-Sensitive Files
+# ================================
+*.pem
+*.key
+*.crt
+*.p12
+.env
+.env.local
+.env.*.local
+secrets.json
+
+# ================================
+# Temporary & Cache Files
+# ================================
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.old
+.cache/
+
+# ================================
+# Release Artifacts (build locally)
+# ================================
+build/release/
+*.zip
+*.tar.gz
+*.dmg
+*.msi
+*-installer.exe
+
+# ================================
+# Docker
+# ================================
+Dockerfile.local
+docker-compose.override.yml
