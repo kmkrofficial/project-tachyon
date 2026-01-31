@@ -154,3 +154,26 @@ func checkForUpdates(currentVersion, owner, repo string) (*UpdateRelease, error)
 		HTMLURL: rel.HTMLURL,
 	}, nil
 }
+
+// FactoryReset wipes all data and resets settings
+func (a *App) FactoryReset() error {
+	a.logger.Info("PERFORMING FACTORY RESET")
+
+	// 1. Reset Database (Tasks, History, Stats)
+	if err := a.engine.GetStorage().FactoryReset(); err != nil {
+		a.logger.Error("Factory reset failed (DB)", "error", err)
+		return err
+	}
+
+	// 2. Reset Configuration
+	if err := a.cfg.FactoryReset(); err != nil {
+		a.logger.Error("Factory reset failed (Config)", "error", err)
+		return err
+	}
+
+	// 3. Clear engine state (optional, but good practice)
+	// For now, relies on frontend reloading or app restart
+
+	a.logger.Info("Factory reset completed successfully")
+	return nil
+}

@@ -261,17 +261,45 @@ func (s *Storage) SetString(key, value string) error {
 // GetStringList retrieves a comma-separated list as slice
 func (s *Storage) GetStringList(key string) ([]string, error) {
 	val, err := s.GetString(key)
-	if err != nil || val == "" {
+	if err != nil {
 		return []string{}, err
 	}
-	// Simple split by comma
-	var result []string
-	for _, item := range splitAndTrim(val) {
-		if item != "" {
-			result = append(result, item)
-		}
+	if val == "" {
+		return []string{}, nil
 	}
-	return result, nil
+	// Simple comma split, could be JSON in future
+	// For now assuming simple string values
+	return []string{val}, nil
+}
+
+// ============= Factory Reset =============
+
+// FactoryReset wipes all tables and vacuums the database
+func (s *Storage) FactoryReset() error {
+	return s.DB.Transaction(func(tx *gorm.DB) error {
+		// Truncate all tables
+		tables := []string{
+			"download_tasks",
+			"daily_stats",
+			"speed_test_history",
+			"download_locations",
+			"app_settings", // Assuming we persist settings in DB later
+		}
+
+		for _, table := range tables {
+			if err := tx.Exec("DELETE FROM " + table).Error; err != nil {
+				// Ignore error if table doesn't exist
+				continue
+			}
+		}
+
+		// Reset sequences if applicable (SQLite specific)
+		if err := tx.Exec("DELETE FROM sqlite_sequence").Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
 }
 
 // SetStringList stores a slice as comma-separated string

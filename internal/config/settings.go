@@ -123,3 +123,26 @@ func (c *ConfigManager) GetUserAgent() string {
 func (c *ConfigManager) SetUserAgent(ua string) error {
 	return c.storage.SetString(KeyUserAgent, ua)
 }
+
+// FactoryReset resets all configuration to defaults
+func (c *ConfigManager) FactoryReset() error {
+	// We just delete the keys, so getters will return defaults
+	keys := []string{
+		KeyEnableAIInterface,
+		KeyAIToken,
+		KeyEnableIntegrityCheck,
+		KeyAIPort,
+		KeyAIMaxConcurrent,
+		KeyUserAgent,
+	}
+
+	for _, key := range keys {
+		// Set to empty string effectively resets it (or we could use a DeleteString if we had one)
+		// Since we don't have DeleteString in Storage interface exposed here yet (it only has DeleteTask/Location),
+		// we can set to empty. Getters check for empty string.
+		if err := c.storage.SetString(key, ""); err != nil {
+			return err
+		}
+	}
+	return nil
+}
