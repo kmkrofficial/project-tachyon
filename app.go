@@ -508,6 +508,13 @@ func (a *App) GetLifetimeStats() int64 {
 	return lifetime
 }
 
+// CalculateHash computes the hash of a file for checksum verification
+// algorithm should be "sha256" or "md5"
+func (a *App) CalculateHash(filePath string, algorithm string) (string, error) {
+	a.logger.Info("frontend_request", "method", "CalculateHash", "path", filePath, "algorithm", algorithm)
+	return core.CalculateHash(filePath, algorithm)
+}
+
 // GetAnalytics returns comprehensive analytics data including disk usage
 func (a *App) GetAnalytics() core.AnalyticsData {
 	stats := a.engine.GetStats()
