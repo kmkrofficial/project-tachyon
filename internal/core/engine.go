@@ -1367,10 +1367,23 @@ func (e *TachyonEngine) downloadWorker(ctx context.Context, taskID string, urlSt
 		if err != nil {
 			// errorCount.Add(1) // Handled by CongestionController now
 
-			// Retry Logic
+			// Retry Logic with Exponential Backoff
 			if part.Attempts < 5 {
 				part.Attempts++
-				e.logger.Warn("Part failed, retrying", "id", part.ID, "attempt", part.Attempts, "error", err)
+
+				// Exponential backoff: 1s, 2s, 4s, 8s, 16s
+				backoffDuration := time.Duration(1<<uint(part.Attempts-1)) * time.Second
+				e.logger.Warn("Part failed, retrying with backoff", "id", part.ID, "attempt", part.Attempts, "backoff", backoffDuration, "error", err)
+
+				// Wait with backoff (respecting context cancellation)
+				select {
+				case <-ctx.Done():
+					// Context cancelled during backoff, exit gracefully
+					return
+				case <-time.After(backoffDuration):
+					// Backoff complete, proceed to retry
+				}
+
 				select {
 				case retryCh <- part:
 				default:
