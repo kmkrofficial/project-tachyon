@@ -61,8 +61,7 @@ Commands:
 Examples:
   go run cmd/builder/main.go check
   go run cmd/builder/main.go build
-  go run cmd/builder/main.go release
-`)
+  go run cmd/builder/main.go release`)
 }
 
 // runCheck verifies all required tools are installed
