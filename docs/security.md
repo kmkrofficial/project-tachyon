@@ -53,6 +53,34 @@ EventsOn("download:av_warning", (data) => {
 - Scans are cancelled if the user cancels the download
 - Context cancellation is handled gracefully (no error reported)
 
-## Future: ClamAV Integration
+## ClamAV Integration (Server/Docker Mode)
 
-Task 1.2 will add ClamAV TCP client support for server/Docker deployments. Configure via `CLAMAV_HOST` environment variable.
+For server deployments or Docker environments, Tachyon supports ClamAV daemon scanning via TCP.
+
+### Configuration
+
+Set the `CLAMAV_HOST` environment variable to enable ClamAV scanning:
+
+```bash
+# Format: hostname:port
+export CLAMAV_HOST=localhost:3310
+
+# For Docker
+docker run -e CLAMAV_HOST=clamav:3310 tachyon
+```
+
+### Protocol
+
+Tachyon uses ClamAV's INSTREAM protocol:
+1. Connects to ClamAV daemon via TCP
+2. Sends `zINSTREAM\0` command
+3. Streams file in chunks with 4-byte big-endian length prefix
+4. Sends 4 zero bytes to terminate
+5. Reads response: "stream: OK" or "stream: <threat> FOUND"
+
+### Scanner Priority
+
+When determining which scanner to use, Tachyon follows this priority:
+1. **ClamAV** - If `CLAMAV_HOST` is set
+2. **Windows Defender** - On Windows (if no ClamAV configured)
+3. **NoOp** - Linux/Mac without ClamAV (warning logged)
