@@ -9,7 +9,9 @@ import (
 	"project-tachyon/internal/config"
 	"project-tachyon/internal/engine"
 	"project-tachyon/internal/security"
+	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -21,14 +23,23 @@ type ControlServer struct {
 	audit      *security.AuditLogger
 	router     *chi.Mux
 	activeReqs int64
+	rateMu     sync.Mutex
+	rateHits   map[string][]time.Time // IP -> request timestamps
 }
+
+const (
+	rateLimit      = 60      // max requests per window
+	rateWindow     = 60      // window size in seconds
+	maxRequestBody = 1 << 20 // 1 MB
+)
 
 func NewControlServer(engine *engine.TachyonEngine, cfg *config.ConfigManager, audit *security.AuditLogger) *ControlServer {
 	s := &ControlServer{
-		engine: engine,
-		cfg:    cfg,
-		audit:  audit,
-		router: chi.NewRouter(),
+		engine:   engine,
+		cfg:      cfg,
+		audit:    audit,
+		router:   chi.NewRouter(),
+		rateHits: make(map[string][]time.Time),
 	}
 	s.setupRoutes()
 	return s
@@ -86,6 +97,7 @@ func (s *ControlServer) setupRoutes() {
 
 	// Security Middleware Chain
 	s.router.Use(s.securityMiddleware)
+	s.router.Use(s.rateLimitMiddleware)
 	s.router.Use(s.concurrencyLimitMiddleware)
 
 	s.router.Post("/v1/queue", s.handleQueueDownload)
@@ -150,12 +162,21 @@ type ControlRequest struct {
 }
 
 func (s *ControlServer) handleQueueDownload(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBody)
 	var req EnqueueRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		s.audit.Log("127.0.0.1", r.UserAgent(), "POST /queue", 400, "Bad Request JSON")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	// Validate URL before passing to engine
+	if err := engine.ValidateURL(req.URL); err != nil {
+		s.audit.Log("127.0.0.1", r.UserAgent(), "POST /queue", 400, err.Error())
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	req.Filename = engine.SanitizeFilename(req.Filename)
 
 	id, err := s.engine.StartDownload(req.URL, req.Path, req.Filename, nil)
 	if err != nil {
@@ -216,3 +237,32 @@ func (s *ControlServer) handleGetStatus(w http.ResponseWriter, r *http.Request) 
 	w.Write([]byte(`{"status": "running"}`))
 }
 
+// rateLimitMiddleware enforces a sliding-window rate limit per source IP.
+func (s *ControlServer) rateLimitMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sourceIP, _, _ := net.SplitHostPort(r.RemoteAddr)
+		now := time.Now()
+		cutoff := now.Add(-time.Duration(rateWindow) * time.Second)
+
+		s.rateMu.Lock()
+		hits := s.rateHits[sourceIP]
+		// Prune old entries
+		pruned := hits[:0]
+		for _, t := range hits {
+			if t.After(cutoff) {
+				pruned = append(pruned, t)
+			}
+		}
+		if len(pruned) >= rateLimit {
+			s.rateHits[sourceIP] = pruned
+			s.rateMu.Unlock()
+			s.audit.Log(sourceIP, r.UserAgent(), r.Method+" "+r.URL.Path, 429, "Rate limit exceeded")
+			http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
+			return
+		}
+		s.rateHits[sourceIP] = append(pruned, now)
+		s.rateMu.Unlock()
+
+		next.ServeHTTP(w, r)
+	})
+}

@@ -48,11 +48,14 @@ func (e *TachyonEngine) newRequest(method, urlStr string, headersStr string, coo
 	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
 	req.Header.Set("Connection", "keep-alive")
 
-	// Apply custom headers
+	// Apply custom headers (with injection prevention)
 	if headersStr != "" {
 		var headers map[string]string
 		if err := json.Unmarshal([]byte(headersStr), &headers); err == nil {
 			for k, v := range headers {
+				if err := ValidateHeaderKey(k); err != nil {
+					continue // Skip dangerous headers silently
+				}
 				req.Header.Set(k, v)
 			}
 		}

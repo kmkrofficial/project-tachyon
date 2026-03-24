@@ -30,8 +30,9 @@ func (e *TachyonEngine) GetQueuedDownloads() []*storage.DownloadTask {
 
 // StartDownload initiates a new download
 func (e *TachyonEngine) StartDownload(urlStr string, destPath string, customFilename string, options map[string]string) (string, error) {
-	if urlStr == "" {
-		return "", fmt.Errorf("empty URL")
+	// Validate URL scheme, length, and host
+	if err := ValidateURL(urlStr); err != nil {
+		return "", err
 	}
 
 	downloadID := uuid.New().String()
@@ -42,6 +43,9 @@ func (e *TachyonEngine) StartDownload(urlStr string, destPath string, customFile
 	if cookies != "" && cookiesJSON == "" {
 		// Just store as is for now
 	}
+
+	// Sanitize custom filename to prevent path traversal
+	customFilename = SanitizeFilename(customFilename)
 
 	// Guess filename for categorization (preliminary)
 	var guessedFilename string

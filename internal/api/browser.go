@@ -37,6 +37,13 @@ func (s *ControlServer) handleBrowserTrigger(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// Validate URL and sanitize filename
+	if err := engine.ValidateURL(params.URL); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	params.Filename = engine.SanitizeFilename(params.Filename)
+
 	// Parse Cookies strictly
 	var cookieSlice []*http.Cookie
 	if params.Cookies != "" {
@@ -107,4 +114,3 @@ func ParseCookieString(raw string) []*http.Cookie {
 	req := http.Request{Header: header}
 	return req.Cookies()
 }
-

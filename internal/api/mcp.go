@@ -130,6 +130,13 @@ func (s *MCPServer) handleDownload(req JsonRpcRequest) {
 		return
 	}
 
+	// Validate URL and sanitize filename
+	if err := engine.ValidateURL(params.URL); err != nil {
+		s.sendError(req.ID, -32602, err.Error())
+		return
+	}
+	params.Filename = engine.SanitizeFilename(params.Filename)
+
 	id, err := s.engine.StartDownload(params.URL, params.Path, params.Filename, nil)
 	if err != nil {
 		s.sendError(req.ID, -32000, err.Error())
@@ -197,4 +204,3 @@ func (s *MCPServer) handleToolsList(req JsonRpcRequest) {
 		"tools": tools,
 	})
 }
-
