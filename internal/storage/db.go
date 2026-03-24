@@ -31,6 +31,11 @@ func NewStorage() (*Storage, error) {
 	}
 
 	dbPath := filepath.Join(dbDir, "tachyon.db")
+	return NewStorageWithPath(dbPath)
+}
+
+// NewStorageWithPath opens a SQLite database at the specified path.
+func NewStorageWithPath(dbPath string) (*Storage, error) {
 
 	// Open SQLite with Glebarez (Pure Go, no CGO)
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{
@@ -80,6 +85,21 @@ func (s *Storage) Checkpoint() error {
 func (s *Storage) SaveTask(task DownloadTask) error {
 	task.UpdatedAt = time.Now().Format(time.RFC3339)
 	return s.DB.Save(&task).Error
+}
+
+// SaveTaskAtomic applies multiple field updates to a task inside a single
+// database transaction.  The caller passes a mutator that modifies the task
+// in-place; all changes are committed atomically or rolled back on error.
+func (s *Storage) SaveTaskAtomic(id string, mutate func(task *DownloadTask)) error {
+	return s.DB.Transaction(func(tx *gorm.DB) error {
+		var task DownloadTask
+		if err := tx.First(&task, "id = ?", id).Error; err != nil {
+			return err
+		}
+		mutate(&task)
+		task.UpdatedAt = time.Now().Format(time.RFC3339)
+		return tx.Save(&task).Error
+	})
 }
 
 // GetTask retrieves a specific task by ID

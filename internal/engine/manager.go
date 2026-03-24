@@ -49,6 +49,7 @@ type TachyonEngine struct {
 	// Bandwidth & Traffic
 	bandwidthManager *network.BandwidthManager
 	congestion       *network.CongestionController
+	breaker          *network.CircuitBreaker
 	hostSingleStream sync.Map // map[string]bool
 
 	// Download tuning knobs
@@ -117,6 +118,7 @@ func NewEngine(logger *slog.Logger, storage *storage.Storage) *TachyonEngine {
 		runningDownloads:  0,
 		bandwidthManager:  network.NewBandwidthManager(),
 		congestion:        network.NewCongestionController(4, MaxWorkersPerTask),
+		breaker:           network.NewCircuitBreaker(5, 30*time.Second),
 		maxWorkersPerTask: MaxWorkersPerTask,
 		baseChunkSize:     0,
 		allocator:         filesystem.NewAllocator(),

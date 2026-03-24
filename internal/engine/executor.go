@@ -197,9 +197,11 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 
 	var downloadedBytes int64 = initialBytes
 
-	// Spawn static worker pool
+	// Spawn initial worker pool (dynamic scaling adjusts this later)
 	workerCount := e.selectWorkerCount(host, numParts, probe.AcceptRanges)
 	strictRanges := probe.AcceptRanges && workerCount > 1
+	var activeWorkers atomic.Int32
+	activeWorkers.Store(int32(workerCount))
 	for i := 0; i < workerCount; i++ {
 		wg.Add(1)
 		go func() {
@@ -217,6 +219,10 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
+
+	// Dynamic scaling ticker — re-evaluate every 5 seconds
+	scaleTicker := time.NewTicker(5 * time.Second)
+	defer scaleTicker.Stop()
 
 	// Speed calculation variables
 	var lastDownloadedBytes int64 = atomic.LoadInt64(&downloadedBytes)
@@ -243,10 +249,13 @@ Loop:
 	for {
 		select {
 		case <-ctx.Done():
-			// Cancelled by user
+			// Cancelled by user — atomic status+meta update
+			metaSnap := e.serializeState(task, completedParts, partPlan)
+			e.storage.SaveTaskAtomic(task.ID, func(t *storage.DownloadTask) {
+				t.Status = "paused"
+				t.MetaJSON = metaSnap
+			})
 			task.Status = "paused"
-			task.MetaJSON = e.serializeState(task, completedParts, partPlan)
-			e.storage.SaveTask(*task)
 			e.logger.Info("Download Cancelled/Paused", "id", task.ID)
 			if e.ctx != nil {
 				runtime.EventsEmit(e.ctx, "download:paused", map[string]interface{}{
@@ -259,17 +268,24 @@ Loop:
 			if errors.Is(err, ErrRangeIgnored) {
 				e.logger.Warn("Range ignored by host, downgrading to single-stream mode", "id", task.ID, "host", host)
 				e.markHostSingleStream(host)
+				if saveErr := e.storage.SaveTaskAtomic(task.ID, func(t *storage.DownloadTask) {
+					t.Status = "pending"
+					t.MetaJSON = ""
+					t.Progress = 0
+					t.Downloaded = 0
+					t.Speed = 0
+					t.TimeRemaining = ""
+				}); saveErr != nil {
+					e.failTask(task, fmt.Sprintf("Failed to save fallback state: %v", saveErr))
+					cancel()
+					return
+				}
 				task.Status = "pending"
 				task.MetaJSON = ""
 				task.Progress = 0
 				task.Downloaded = 0
 				task.Speed = 0
 				task.TimeRemaining = ""
-				if saveErr := e.storage.SaveTask(*task); saveErr != nil {
-					e.failTask(task, fmt.Sprintf("Failed to save fallback state: %v", saveErr))
-					cancel()
-					return
-				}
 				e.queue.Push(task)
 				cancel()
 				return
@@ -278,9 +294,12 @@ Loop:
 			// Check for link expiration (403 Forbidden)
 			if errors.Is(err, ErrLinkExpired) {
 				e.logger.Warn("Link expired - pausing for URL refresh", "id", task.ID)
+				metaSnap := e.serializeState(task, completedParts, partPlan)
+				e.storage.SaveTaskAtomic(task.ID, func(t *storage.DownloadTask) {
+					t.Status = StatusNeedsAuth
+					t.MetaJSON = metaSnap
+				})
 				task.Status = StatusNeedsAuth
-				task.MetaJSON = e.serializeState(task, completedParts, partPlan)
-				e.storage.SaveTask(*task)
 				cancel()
 				if e.ctx != nil {
 					runtime.EventsEmit(e.ctx, "download:needs_auth", map[string]interface{}{
@@ -340,6 +359,25 @@ Loop:
 					"total":      task.TotalSize,
 				})
 			}
+
+		case <-scaleTicker.C:
+			// Dynamic worker scaling: query congestion controller for ideal count
+			if strictRanges {
+				ideal := int32(e.selectWorkerCount(host, numParts-len(completedParts), true))
+				current := activeWorkers.Load()
+				if ideal > current {
+					toSpawn := ideal - current
+					activeWorkers.Store(ideal)
+					for i := int32(0); i < toSpawn; i++ {
+						wg.Add(1)
+						go func() {
+							defer wg.Done()
+							e.downloadWorker(ctx, task.ID, task.URL, host, file, partCh, retryCh, partDoneCh, errCh, &downloadedBytes, &errorCount, task.Headers, task.Cookies, strictRanges)
+						}()
+					}
+					e.logger.Info("Scaled up workers", "id", task.ID, "from", current, "to", ideal)
+				}
+			}
 		}
 	}
 
@@ -375,7 +413,11 @@ Loop:
 		task.Status = "completed"
 		task.Progress = 100
 		task.Downloaded = task.TotalSize
-		e.storage.SaveTask(*task)
+		e.storage.SaveTaskAtomic(task.ID, func(t *storage.DownloadTask) {
+			t.Status = "completed"
+			t.Progress = 100
+			t.Downloaded = task.TotalSize
+		})
 		e.logger.Info("Download Completed", "id", task.ID)
 
 		// Trigger native AV scan (non-blocking warning)

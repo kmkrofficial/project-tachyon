@@ -47,10 +47,28 @@ func (e *TachyonEngine) downloadWorker(ctx context.Context, taskID string, urlSt
 
 // processDownloadPart handles downloading a single part with retry logic
 func (e *TachyonEngine) processDownloadPart(ctx context.Context, taskID string, urlStr string, host string, file *os.File, part DownloadPart, retryCh chan DownloadPart, partDoneCh chan<- int, errCh chan<- error, downloadedBytes *int64, errorCount *atomic.Int32, headersStr string, cookiesStr string, strictRanges bool) {
+	// Circuit breaker gate — block if host is failing too much.
+	if err := e.breaker.Allow(host); err != nil {
+		// Back off and retry later instead of hammering the host.
+		if part.Attempts < 3 {
+			part.Attempts++
+			select {
+			case retryCh <- part:
+			default:
+				errCh <- fmt.Errorf("breaker open, retry buffer full for part %d", part.ID)
+			}
+		} else {
+			errCh <- fmt.Errorf("breaker open for host %s, part %d exhausted retries", host, part.ID)
+		}
+		return
+	}
+
 	startedAt := time.Now()
 	err := e.downloadPart(ctx, taskID, urlStr, file, part, BufferSize, headersStr, cookiesStr, strictRanges)
 	e.congestion.RecordOutcome(host, time.Since(startedAt), err)
+
 	if err != nil {
+		e.breaker.RecordFailure(host)
 		errorCount.Add(1)
 
 		if errors.Is(err, ErrRangeIgnored) {
@@ -84,6 +102,7 @@ func (e *TachyonEngine) processDownloadPart(ctx context.Context, taskID string, 
 		}
 	} else {
 		// Success
+		e.breaker.RecordSuccess(host)
 		atomic.AddInt64(downloadedBytes, part.EndOffset-part.StartOffset+1)
 		partDoneCh <- part.ID
 	}
@@ -160,7 +179,9 @@ func (e *TachyonEngine) downloadPart(ctx context.Context, taskID string, urlStr 
 func (e *TachyonEngine) failTask(task *storage.DownloadTask, reason string) {
 	e.logger.Error("Task Failed", "id", task.ID, "reason", reason)
 	task.Status = "error"
-	e.storage.SaveTask(*task)
+	e.storage.SaveTaskAtomic(task.ID, func(t *storage.DownloadTask) {
+		t.Status = "error"
+	})
 	if e.ctx != nil {
 		runtime.EventsEmit(e.ctx, "download:error", map[string]interface{}{
 			"id":    task.ID,
