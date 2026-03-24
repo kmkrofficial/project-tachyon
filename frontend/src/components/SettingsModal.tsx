@@ -6,6 +6,7 @@ import { useTachyon } from '../hooks/useTachyon';
 import { GeneralSettings } from '../pages/Settings/General';
 import { SecurityLog } from '../pages/Settings/SecurityLog';
 import { MCPDashboard } from '../pages/Settings/MCPDashboard';
+import { NetworkSettings } from '../pages/Settings/NetworkSettings';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -102,18 +103,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                             </div>
                         )}
 
-                        {activeTab === 'network' && (
-                            <div className="space-y-6">
-                                <div className="bg-gray-800 p-4 rounded-lg">
-                                    <span className="block text-white font-medium mb-4">Concurrency Limits per Host</span>
-                                    <p className="text-xs text-gray-400 mb-4">Limit simultaneous downloads from specific websites (e.g. mega.nz to 1).</p>
-                                    {/* ... Network Implementation ... */}
-                                    <div className="bg-gray-800 p-4 rounded-lg">
-                                        <div className="text-gray-500 italic text-center">Network Settings Placeholder</div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+                        {activeTab === 'network' && <NetworkSettings />}
 
                         {activeTab === 'security' && <SecurityLog />}
                     </div>

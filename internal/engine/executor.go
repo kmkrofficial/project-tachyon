@@ -197,17 +197,17 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 
 	var downloadedBytes int64 = initialBytes
 
-	// Spawn initial worker pool (dynamic scaling adjusts this later)
+	// Spawn initial workers via global pool (dynamic scaling adjusts this later)
 	workerCount := e.selectWorkerCount(host, numParts, probe.AcceptRanges)
 	strictRanges := probe.AcceptRanges && workerCount > 1
 	var activeWorkers atomic.Int32
 	activeWorkers.Store(int32(workerCount))
 	for i := 0; i < workerCount; i++ {
 		wg.Add(1)
-		go func() {
+		e.workerPool.Submit(func() {
 			defer wg.Done()
 			e.downloadWorker(ctx, task.ID, task.URL, host, file, partCh, retryCh, partDoneCh, errCh, &downloadedBytes, &errorCount, task.Headers, task.Cookies, strictRanges)
-		}()
+		})
 	}
 
 	// 6. Monitor Progress & Waits
@@ -370,10 +370,10 @@ Loop:
 					activeWorkers.Store(ideal)
 					for i := int32(0); i < toSpawn; i++ {
 						wg.Add(1)
-						go func() {
+						e.workerPool.Submit(func() {
 							defer wg.Done()
 							e.downloadWorker(ctx, task.ID, task.URL, host, file, partCh, retryCh, partDoneCh, errCh, &downloadedBytes, &errorCount, task.Headers, task.Cookies, strictRanges)
-						}()
+						})
 					}
 					e.logger.Info("Scaled up workers", "id", task.ID, "from", current, "to", ideal)
 				}

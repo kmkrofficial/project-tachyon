@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { Search } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { DownloadsTable } from './components/DownloadsTable';
@@ -7,6 +8,8 @@ import { SettingsModal } from './components/SettingsModal';
 import { AnalyticsTab } from './components/AnalyticsTab';
 import { SpeedTestTab } from './components/SpeedTestTab';
 import { useTachyon } from './hooks/useTachyon';
+import { useTheme } from './hooks/useTheme';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 
@@ -15,6 +18,11 @@ function App() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [toasts, setToasts] = useState<ToastMessage[]>([]);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [statusFilter, setStatusFilter] = useState<string>('all');
+
+    // Activate theme system
+    useTheme();
 
     const addToast = useCallback((type: 'success' | 'error' | 'warning' | 'info', title: string, message: string) => {
         const id = Math.random().toString(36).substr(2, 9);
@@ -41,12 +49,38 @@ function App() {
     // We pass addToast to useTachyon if we want it to manage some errors, or just pass it down to components
     const { downloads, addDownload, openFolder, openFile, dailyData, diskUsage, totalSpeed, reorderDownload, setPriority } = useTachyon();
 
-    // Filter downloads based on active tab
+    // Keyboard shortcuts
+    useKeyboardShortcuts({
+        onNewDownload: () => setIsModalOpen(true),
+        onPauseResume: () => {
+            const active = Object.values(downloads).find(d => d.status === 'downloading');
+            if (active) { window.go?.app?.App?.PauseDownload?.(active.id); return; }
+            const paused = Object.values(downloads).find(d => d.status === 'paused');
+            if (paused) { window.go?.app?.App?.ResumeDownload?.(paused.id); }
+        },
+        onDelete: () => {
+            const first = Object.values(downloads).find(d => ['downloading', 'paused', 'pending', 'error'].includes(d.status));
+            if (first) window.go?.app?.App?.DeleteDownload?.(first.id, false);
+        },
+    });
+
+    // Filter downloads based on active tab, search, and status filter
     const filteredDownloads = Object.values(downloads)
         .filter(item => {
-            if (activeTab === "all") return true;
-            if (activeTab === "settings" || activeTab === "analytics") return true; // Handled by render
-            return item.status === activeTab;
+            // Tab filter
+            if (activeTab !== "all" && activeTab !== "settings" && activeTab !== "analytics") {
+                if (item.status !== activeTab) return false;
+            }
+            // Status dropdown filter
+            if (statusFilter !== 'all' && item.status !== statusFilter) return false;
+            // Text search
+            if (searchQuery) {
+                const q = searchQuery.toLowerCase();
+                const matchFile = item.filename?.toLowerCase().includes(q);
+                const matchUrl = item.url?.toLowerCase().includes(q);
+                if (!matchFile && !matchUrl) return false;
+            }
+            return true;
         })
         .sort((a, b) => {
             // Sort active/pending items by Queue Order (Ascending)
@@ -104,6 +138,32 @@ function App() {
                             <div className="space-y-6">
                                 {/* Dashboard Widgets (Only on Dashboard) */}
                                 {activeTab === 'all' && <DashboardWidgets downloads={Object.values(downloads)} dailyData={dailyData} totalSpeed={totalSpeed} />}
+
+                                {/* Search & Filter Bar */}
+                                <div className="flex items-center gap-3">
+                                    <div className="flex-1 relative">
+                                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                                        <input
+                                            type="text"
+                                            placeholder="Search by filename or URL..."
+                                            value={searchQuery}
+                                            onChange={e => setSearchQuery(e.target.value)}
+                                            className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-cyan-500 focus:outline-none"
+                                        />
+                                    </div>
+                                    <select
+                                        value={statusFilter}
+                                        onChange={e => setStatusFilter(e.target.value)}
+                                        className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-cyan-500 focus:outline-none"
+                                    >
+                                        <option value="all">All Status</option>
+                                        <option value="downloading">Downloading</option>
+                                        <option value="completed">Completed</option>
+                                        <option value="paused">Paused</option>
+                                        <option value="pending">Pending</option>
+                                        <option value="error">Error</option>
+                                    </select>
+                                </div>
 
                                 {/* Data Grid */}
                                 <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl shadow-black/20">

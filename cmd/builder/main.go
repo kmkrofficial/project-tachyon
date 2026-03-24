@@ -15,7 +15,7 @@ import (
 
 const (
 	appName    = "Tachyon"
-	appVersion = "1.0.0" // TODO: Read from version file
+	appVersion = "1.0.0" // Synced with wails.json productVersion
 )
 
 func main() {

@@ -1,12 +1,20 @@
 package app
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 
 	"project-tachyon/internal/filesystem"
 	"project-tachyon/internal/storage"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+)
+
+const (
+	updateOwner    = "tachyon-org"
+	updateRepo     = "project-tachyon"
+	currentVersion = "v1.0.0"
 )
 
 // GetQueuedDownloads returns all downloads currently in the queue
@@ -98,21 +106,43 @@ func (a *App) OpenFile(id string) {
 	}
 }
 
-// UpdateSettings saves user settings (JSON format)
+// UpdateSettings saves user settings from a JSON payload to the database.
 func (a *App) UpdateSettings(jsonSettings string) {
 	a.logger.Info("UpdateSettings called", "settings", jsonSettings)
-	// TODO: Parse and save to DB
+
+	var settings map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonSettings), &settings); err != nil {
+		a.logger.Error("Failed to parse settings JSON", "error", err)
+		return
+	}
+	for key, val := range settings {
+		var strVal string
+		switch v := val.(type) {
+		case string:
+			strVal = v
+		case float64:
+			strVal = fmt.Sprintf("%v", v)
+		case bool:
+			if v {
+				strVal = "true"
+			} else {
+				strVal = "false"
+			}
+		default:
+			b, _ := json.Marshal(v)
+			strVal = string(b)
+		}
+		if err := a.engine.GetStorage().SetString(key, strVal); err != nil {
+			a.logger.Error("Failed to save setting", "key", key, "error", err)
+		}
+	}
 }
 
 // CheckForUpdates checks for new releases on GitHub
 func (a *App) CheckForUpdates() {
 	a.logger.Info("Checking for updates...")
-	// TODO: Get owner/repo from config or constants
-	owner := "tachyon-org"
-	repo := "project-tachyon"
-	currentVersion := "v0.1.0"
 
-	rel, err := checkForUpdates(currentVersion, owner, repo)
+	rel, err := checkForUpdates(currentVersion, updateOwner, updateRepo)
 	if err != nil {
 		a.logger.Error("Update check failed", "error", err)
 		return

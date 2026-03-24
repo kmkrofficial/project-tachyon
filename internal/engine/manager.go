@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"log/slog"
-	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -69,6 +68,9 @@ type TachyonEngine struct {
 	// Security
 	scanner security.Scanner
 
+	// Global goroutine pool for download workers
+	workerPool *WorkerPool
+
 	// Custom User-Agent (thread-safe)
 	userAgentMu sync.RWMutex
 	userAgent   string
@@ -76,19 +78,20 @@ type TachyonEngine struct {
 
 // NewEngine creates a new TachyonEngine instance
 func NewEngine(logger *slog.Logger, storage *storage.Storage) *TachyonEngine {
-	// Custom Transport for Connection Reuse
+	// DNS cache reduces lookup latency on multi-part downloads to the same host
+	dnsCache := network.NewDNSCache(5 * time.Minute)
+
+	// Custom Transport for Connection Reuse + HTTP/2 multiplexing
 	transport := &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		DialContext: (&net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
-		}).DialContext,
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           dnsCache.DialContext(30*time.Second, 30*time.Second),
 		MaxIdleConns:          100, // Global pool size
 		MaxIdleConnsPerHost:   32,  // Allow high concurrency per host
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		DisableCompression:    true, // We want raw bytes
+		ForceAttemptHTTP2:     true, // Enable HTTP/2 multiplexing
 	}
 
 	client := &http.Client{
@@ -126,6 +129,7 @@ func NewEngine(logger *slog.Logger, storage *storage.Storage) *TachyonEngine {
 		organizer:         filesystem.NewSmartOrganizer(),
 		stateManager:      NewStateManager(),
 		scanner:           security.NewScanner(logger),
+		workerPool:        NewWorkerPool(64), // Global pool — covers all concurrent download workers
 	}
 	e.workerCond = sync.NewCond(&e.workerMutex)
 
@@ -197,6 +201,10 @@ func (e *TachyonEngine) Shutdown() error {
 		e.logger.Error("Failed to checkpoint DB", "error", err)
 		return err
 	}
+
+	// 3. Drain global worker pool
+	e.workerPool.Close()
+
 	e.logger.Info("Engine shutdown complete")
 	return nil
 }
