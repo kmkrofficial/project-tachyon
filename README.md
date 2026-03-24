@@ -235,6 +235,26 @@ go test -v ./internal/storage/...
 go test -v ./internal/queue/...
 ```
 
+### Aggressive Downloader Benchmark (Ubuntu)
+
+```bash
+# Two-phase aggressive tuning benchmark against Ubuntu ISO
+go run ./cmd/benchmark \
+  -url https://releases.ubuntu.com/24.04/ubuntu-24.04.2-live-server-amd64.iso \
+  -test-bytes-mb 512 \
+  -timeout-sec 180
+
+# Equivalent Task command
+task benchmark-ubuntu
+```
+
+The benchmark performs a broad worker/chunk sweep, refines around top candidates,
+and prints a recommended engine tuning call:
+
+```go
+SetDownloadTuning(workers, chunkBytes)
+```
+
 ### Frontend Tests
 
 ```bash

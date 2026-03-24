@@ -33,6 +33,11 @@ tasks:
       - cd frontend && npm run test -- --run
       - go test ./...
 
+  benchmark-ubuntu:
+    desc: Runs aggressive downloader benchmark against Ubuntu ISO URL
+    cmds:
+      - go run ./cmd/benchmark -url https://releases.ubuntu.com/24.04/ubuntu-24.04.2-live-server-amd64.iso -test-bytes-mb 512 -timeout-sec 180
+
 
   build-extension:
     desc: Zips the chrome extension

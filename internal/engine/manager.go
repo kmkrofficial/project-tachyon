@@ -21,7 +21,7 @@ import (
 const (
 	DownloadChunkSize = 1 * 1024 * 1024 // 1MB Part Size
 	BufferSize        = 32 * 1024       // 32KB Buffer for CopyBuffer
-	MaxWorkersPerTask = 8               // Static worker pool size per task
+	MaxWorkersPerTask = 24              // Aggressive upper bound; dynamic tuning chooses active count
 	GenericUserAgent  = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36"
 
 	// Status for tasks needing URL refresh (403 received)
@@ -48,6 +48,12 @@ type TachyonEngine struct {
 
 	// Bandwidth & Traffic
 	bandwidthManager *network.BandwidthManager
+	congestion       *network.CongestionController
+	hostSingleStream sync.Map // map[string]bool
+
+	// Download tuning knobs
+	maxWorkersPerTask int
+	baseChunkSize     int64
 
 	// integrity
 	allocator *filesystem.Allocator
@@ -105,21 +111,45 @@ func NewEngine(logger *slog.Logger, storage *storage.Storage) *TachyonEngine {
 				return &b
 			},
 		},
-		httpClient:       client,
-		stats:            analytics.NewStatsManager(storage, filesystem.GetDefaultDownloadPath),
-		maxConcurrent:    5, // System wide limit of downloads
-		runningDownloads: 0,
-		bandwidthManager: network.NewBandwidthManager(),
-		allocator:        filesystem.NewAllocator(),
-		verifier:         integrity.NewFileVerifier(),
-		organizer:        filesystem.NewSmartOrganizer(),
-		stateManager:     NewStateManager(),
-		scanner:          security.NewScanner(logger),
+		httpClient:        client,
+		stats:             analytics.NewStatsManager(storage, filesystem.GetDefaultDownloadPath),
+		maxConcurrent:     5, // System wide limit of downloads
+		runningDownloads:  0,
+		bandwidthManager:  network.NewBandwidthManager(),
+		congestion:        network.NewCongestionController(4, MaxWorkersPerTask),
+		maxWorkersPerTask: MaxWorkersPerTask,
+		baseChunkSize:     0,
+		allocator:         filesystem.NewAllocator(),
+		verifier:          integrity.NewFileVerifier(),
+		organizer:         filesystem.NewSmartOrganizer(),
+		stateManager:      NewStateManager(),
+		scanner:           security.NewScanner(logger),
 	}
 	e.workerCond = sync.NewCond(&e.workerMutex)
 
 	go e.queueWorker()
 	return e
+}
+
+// SetDownloadTuning overrides worker and chunk tuning at runtime.
+func (e *TachyonEngine) SetDownloadTuning(maxWorkers int, baseChunkBytes int64) {
+	e.workerMutex.Lock()
+	if maxWorkers < 1 {
+		maxWorkers = 1
+	}
+	if maxWorkers > 64 {
+		maxWorkers = 64
+	}
+	e.maxWorkersPerTask = maxWorkers
+	e.workerMutex.Unlock()
+
+	if baseChunkBytes < 0 {
+		baseChunkBytes = 0
+	}
+	e.baseChunkSize = baseChunkBytes
+
+	// Keep congestion controller bounds aligned with worker caps.
+	e.congestion = network.NewCongestionController(4, maxWorkers)
 }
 
 // SetContext sets the Wails context for event emission

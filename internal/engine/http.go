@@ -17,6 +17,8 @@ import (
 var (
 	// ErrLinkExpired indicates the download URL has expired (HTTP 403)
 	ErrLinkExpired = errors.New("link expired or access denied (403)")
+	// ErrRangeIgnored indicates the server ignored byte range requests.
+	ErrRangeIgnored = errors.New("server ignored range request")
 )
 
 // ProbeResult contains metadata from a URL probe
@@ -78,24 +80,56 @@ func (e *TachyonEngine) newRequest(method, urlStr string, headersStr string, coo
 	return req, nil
 }
 
-// ProbeURL checks the URL using GET with Range header (no HEAD request)
+// ProbeURL checks the URL using HEAD first, falling back to GET+Range if needed
 func (e *TachyonEngine) ProbeURL(urlStr string, headersStr string, cookiesStr string) (*ProbeResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Use GET with Range 0-0 to minimize data transfer while getting metadata
+	// 1. Try HEAD first (fast, no body transfer)
+	result, err := e.probeHEAD(ctx, urlStr, headersStr, cookiesStr)
+	if err == nil && result.Size > 0 {
+		return result, nil
+	}
+
+	// 2. Fallback to GET+Range for servers that don't support HEAD properly
+	e.logger.Info("HEAD probe insufficient, falling back to GET+Range", "url", urlStr)
+	return e.probeGETRange(ctx, urlStr, headersStr, cookiesStr)
+}
+
+// probeHEAD performs a lightweight HEAD request to gather file metadata
+func (e *TachyonEngine) probeHEAD(ctx context.Context, urlStr string, headersStr string, cookiesStr string) (*ProbeResult, error) {
+	req, err := e.newRequest("HEAD", urlStr, headersStr, cookiesStr)
+	if err != nil {
+		return nil, friendlyError(err)
+	}
+	req = req.WithContext(ctx)
+
+	resp, err := e.httpClient.Do(req)
+	if err != nil {
+		e.logger.Error("HEAD probe failed", "url", urlStr, "error", err)
+		return nil, friendlyError(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return &ProbeResult{Status: resp.StatusCode}, friendlyHTTPError(resp.StatusCode)
+	}
+
+	return e.parseProbeResponse(resp), nil
+}
+
+// probeGETRange performs a GET request with Range: bytes=0-0 as a fallback probe
+func (e *TachyonEngine) probeGETRange(ctx context.Context, urlStr string, headersStr string, cookiesStr string) (*ProbeResult, error) {
 	req, err := e.newRequest("GET", urlStr, headersStr, cookiesStr)
 	if err != nil {
 		return nil, friendlyError(err)
 	}
-	// Apply context
 	req = req.WithContext(ctx)
-
 	req.Header.Set("Range", "bytes=0-0")
 
 	resp, err := e.httpClient.Do(req)
 	if err != nil {
-		e.logger.Error("Probe failed", "url", urlStr, "error", err)
+		e.logger.Error("GET range probe failed", "url", urlStr, "error", err)
 		return nil, friendlyError(err)
 	}
 	defer resp.Body.Close()
@@ -104,6 +138,11 @@ func (e *TachyonEngine) ProbeURL(urlStr string, headersStr string, cookiesStr st
 		return &ProbeResult{Status: resp.StatusCode}, friendlyHTTPError(resp.StatusCode)
 	}
 
+	return e.parseProbeResponse(resp), nil
+}
+
+// parseProbeResponse extracts metadata from an HTTP response
+func (e *TachyonEngine) parseProbeResponse(resp *http.Response) *ProbeResult {
 	filename := ""
 	cd := resp.Header.Get("Content-Disposition")
 	if cd != "" {
@@ -125,8 +164,7 @@ func (e *TachyonEngine) ProbeURL(urlStr string, headersStr string, cookiesStr st
 
 	// If response is 206 Partial Content, parse total size from Content-Range
 	if resp.StatusCode == http.StatusPartialContent {
-		acceptRanges = true // Implicitly supported
-		// Parse Content-Range: bytes 0-0/123456
+		acceptRanges = true
 		cr := resp.Header.Get("Content-Range")
 		if cr != "" {
 			if parts := strings.Split(cr, "/"); len(parts) == 2 {
@@ -144,7 +182,7 @@ func (e *TachyonEngine) ProbeURL(urlStr string, headersStr string, cookiesStr st
 		AcceptRanges: acceptRanges,
 		ETag:         resp.Header.Get("ETag"),
 		LastModified: resp.Header.Get("Last-Modified"),
-	}, nil
+	}
 }
 
 // friendlyError converts technical errors to user-friendly messages

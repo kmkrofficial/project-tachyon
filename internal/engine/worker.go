@@ -2,12 +2,14 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"project-tachyon/internal/storage"
 
@@ -29,7 +31,7 @@ type activeDownloadInfo struct {
 }
 
 // downloadWorker consumes parts and downloads them
-func (e *TachyonEngine) downloadWorker(ctx context.Context, taskID string, urlStr string, host string, file *os.File, partCh <-chan DownloadPart, retryCh chan DownloadPart, partDoneCh chan<- int, errCh chan<- error, downloadedBytes *int64, errorCount *atomic.Int32, headersStr string, cookiesStr string) {
+func (e *TachyonEngine) downloadWorker(ctx context.Context, taskID string, urlStr string, host string, file *os.File, partCh <-chan DownloadPart, retryCh chan DownloadPart, partDoneCh chan<- int, errCh chan<- error, downloadedBytes *int64, errorCount *atomic.Int32, headersStr string, cookiesStr string, strictRanges bool) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -38,16 +40,23 @@ func (e *TachyonEngine) downloadWorker(ctx context.Context, taskID string, urlSt
 			if !ok {
 				return
 			}
-			e.processDownloadPart(ctx, taskID, urlStr, host, file, part, retryCh, partDoneCh, errCh, downloadedBytes, errorCount, headersStr, cookiesStr)
+			e.processDownloadPart(ctx, taskID, urlStr, host, file, part, retryCh, partDoneCh, errCh, downloadedBytes, errorCount, headersStr, cookiesStr, strictRanges)
 		}
 	}
 }
 
 // processDownloadPart handles downloading a single part with retry logic
-func (e *TachyonEngine) processDownloadPart(ctx context.Context, taskID string, urlStr string, host string, file *os.File, part DownloadPart, retryCh chan DownloadPart, partDoneCh chan<- int, errCh chan<- error, downloadedBytes *int64, errorCount *atomic.Int32, headersStr string, cookiesStr string) {
-	err := e.downloadPart(ctx, taskID, urlStr, file, part, BufferSize, headersStr, cookiesStr)
+func (e *TachyonEngine) processDownloadPart(ctx context.Context, taskID string, urlStr string, host string, file *os.File, part DownloadPart, retryCh chan DownloadPart, partDoneCh chan<- int, errCh chan<- error, downloadedBytes *int64, errorCount *atomic.Int32, headersStr string, cookiesStr string, strictRanges bool) {
+	startedAt := time.Now()
+	err := e.downloadPart(ctx, taskID, urlStr, file, part, BufferSize, headersStr, cookiesStr, strictRanges)
+	e.congestion.RecordOutcome(host, time.Since(startedAt), err)
 	if err != nil {
 		errorCount.Add(1)
+
+		if errors.Is(err, ErrRangeIgnored) {
+			errCh <- ErrRangeIgnored
+			return
+		}
 
 		// Check for ErrLinkExpired (403)
 		if err == ErrLinkExpired {
@@ -81,19 +90,25 @@ func (e *TachyonEngine) processDownloadPart(ctx context.Context, taskID string, 
 }
 
 // downloadPart downloads a single part of the file
-func (e *TachyonEngine) downloadPart(ctx context.Context, taskID string, urlStr string, file *os.File, part DownloadPart, chunkSize int, headersStr string, cookiesStr string) error {
+func (e *TachyonEngine) downloadPart(ctx context.Context, taskID string, urlStr string, file *os.File, part DownloadPart, chunkSize int, headersStr string, cookiesStr string, strictRanges bool) error {
 	req, err := e.newRequest("GET", urlStr, headersStr, cookiesStr)
 	if err != nil {
 		return err
 	}
 	req = req.WithContext(ctx)
-	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", part.StartOffset, part.EndOffset))
+	if part.EndOffset != StreamEndOffset {
+		req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", part.StartOffset, part.EndOffset))
+	}
 
 	resp, err := e.httpClient.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+
+	if strictRanges && part.EndOffset != StreamEndOffset && resp.StatusCode == http.StatusOK {
+		return ErrRangeIgnored
+	}
 
 	if resp.StatusCode != http.StatusPartialContent && resp.StatusCode != http.StatusOK {
 		// Check for 403 Forbidden - indicates expired/invalid link
@@ -109,6 +124,9 @@ func (e *TachyonEngine) downloadPart(ctx context.Context, taskID string, urlStr 
 
 	currentOffset := part.StartOffset
 	totalBytesToRead := part.EndOffset - part.StartOffset + 1
+	if part.EndOffset == StreamEndOffset {
+		totalBytesToRead = StreamEndOffset
+	}
 	bytesReadTotal := int64(0)
 
 	for bytesReadTotal < totalBytesToRead {
@@ -157,7 +175,7 @@ func (e *TachyonEngine) loadState(metaJSON string) (*storage.ResumeState, error)
 }
 
 // serializeState serializes download state to MetaJSON
-func (e *TachyonEngine) serializeState(task *storage.DownloadTask, completedParts map[int]bool) string {
+func (e *TachyonEngine) serializeState(task *storage.DownloadTask, completedParts map[int]bool, partPlan map[int]DownloadPart) string {
 	// Construct ResumeState from current execution status
 	state := &storage.ResumeState{
 		Version:      1,
@@ -170,9 +188,13 @@ func (e *TachyonEngine) serializeState(task *storage.DownloadTask, completedPart
 	// Track completed parts
 	for id, done := range completedParts {
 		if done {
+			part, ok := partPlan[id]
+			if !ok {
+				continue
+			}
 			state.Parts[id] = storage.PartState{
-				Start:    int64(id) * DownloadChunkSize,
-				End:      int64(id)*DownloadChunkSize + DownloadChunkSize - 1,
+				Start:    part.StartOffset,
+				End:      part.EndOffset,
 				Complete: true,
 			}
 		}

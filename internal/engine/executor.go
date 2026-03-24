@@ -85,6 +85,12 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 	}
 	task.TotalSize = probe.Size
 
+	u, _ := url.Parse(task.URL)
+	host := u.Hostname()
+	if e.isHostSingleStream(host) {
+		probe.AcceptRanges = false
+	}
+
 	// 3. Prepare Disk (Allocator)
 	if probe.Size > 0 {
 		if err := e.allocator.AllocateFile(task.SavePath, probe.Size); err != nil {
@@ -109,15 +115,10 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 	defer file.Close()
 
 	// 4. Job Producer (Generate Parts)
-	numParts := int((probe.Size + DownloadChunkSize - 1) / DownloadChunkSize)
-	if numParts == 0 {
-		numParts = 1
-	}
-
-	// Fallback to Single-Threaded if Ranges not supported
+	parts := e.planDownloadParts(probe.Size, probe.AcceptRanges)
+	numParts := len(parts)
 	if !probe.AcceptRanges {
 		e.logger.Info("Server does not support ranges, switching to single-threaded mode", "id", task.ID)
-		numParts = 1
 	}
 
 	// Load Resume State
@@ -144,6 +145,10 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 
 	// Hydrate completed parts
 	completedParts := make(map[int]bool)
+	partPlan := make(map[int]DownloadPart, len(parts))
+	for _, part := range parts {
+		partPlan[part.ID] = part
+	}
 	if resumeState != nil {
 		for id, part := range resumeState.Parts {
 			if part.Complete {
@@ -160,54 +165,46 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 
 	// Generate parts (Skip completed)
 	go func() {
-		for i := 0; i < numParts; i++ {
-			if completedParts[i] {
+		for _, part := range parts {
+			if completedParts[part.ID] {
 				continue
 			}
-			start := int64(i) * DownloadChunkSize
-			end := start + DownloadChunkSize - 1
-			if end >= probe.Size {
-				end = probe.Size - 1
-			}
-			partCh <- DownloadPart{ID: i, StartOffset: start, EndOffset: end, Attempts: 0}
+			partCh <- part
 		}
 		close(partCh)
 	}()
 
 	// 5. Worker Swarm (Consumers)
-	u, _ := url.Parse(task.URL)
-	host := u.Host
-
 	var errorCount atomic.Int32
 
 	wg := &sync.WaitGroup{}
 
 	// Initialize downloadedBytes based on completed parts
 	var initialBytes int64
-	for id := range completedParts {
-		start := int64(id) * DownloadChunkSize
-		end := start + DownloadChunkSize - 1
-		if end >= probe.Size {
-			end = probe.Size - 1
+	for id, done := range completedParts {
+		if !done {
+			continue
 		}
-		initialBytes += (end - start + 1)
+		part, ok := partPlan[id]
+		if !ok {
+			continue
+		}
+		if part.EndOffset == StreamEndOffset {
+			continue
+		}
+		initialBytes += (part.EndOffset - part.StartOffset + 1)
 	}
 
 	var downloadedBytes int64 = initialBytes
 
 	// Spawn static worker pool
-	workerCount := MaxWorkersPerTask
-	if numParts < workerCount {
-		workerCount = numParts
-	}
-	if !probe.AcceptRanges {
-		workerCount = 1
-	}
+	workerCount := e.selectWorkerCount(host, numParts, probe.AcceptRanges)
+	strictRanges := probe.AcceptRanges && workerCount > 1
 	for i := 0; i < workerCount; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			e.downloadWorker(ctx, task.ID, task.URL, host, file, partCh, retryCh, partDoneCh, errCh, &downloadedBytes, &errorCount, task.Headers, task.Cookies)
+			e.downloadWorker(ctx, task.ID, task.URL, host, file, partCh, retryCh, partDoneCh, errCh, &downloadedBytes, &errorCount, task.Headers, task.Cookies, strictRanges)
 		}()
 	}
 
@@ -229,6 +226,16 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 	task.Status = "downloading"
 	e.storage.SaveTask(*task)
 
+	// Notify frontend of status transition
+	if e.ctx != nil {
+		runtime.EventsEmit(e.ctx, "download:progress", map[string]interface{}{
+			"id":       task.ID,
+			"status":   "downloading",
+			"filename": task.Filename,
+			"total":    task.TotalSize,
+		})
+	}
+
 	// Update Bandwidth Manager priority
 	e.bandwidthManager.SetTaskPriority(task.ID, task.Priority)
 
@@ -238,7 +245,7 @@ Loop:
 		case <-ctx.Done():
 			// Cancelled by user
 			task.Status = "paused"
-			task.MetaJSON = e.serializeState(task, completedParts)
+			task.MetaJSON = e.serializeState(task, completedParts, partPlan)
 			e.storage.SaveTask(*task)
 			e.logger.Info("Download Cancelled/Paused", "id", task.ID)
 			if e.ctx != nil {
@@ -249,11 +256,30 @@ Loop:
 			break Loop
 
 		case err := <-errCh:
+			if errors.Is(err, ErrRangeIgnored) {
+				e.logger.Warn("Range ignored by host, downgrading to single-stream mode", "id", task.ID, "host", host)
+				e.markHostSingleStream(host)
+				task.Status = "pending"
+				task.MetaJSON = ""
+				task.Progress = 0
+				task.Downloaded = 0
+				task.Speed = 0
+				task.TimeRemaining = ""
+				if saveErr := e.storage.SaveTask(*task); saveErr != nil {
+					e.failTask(task, fmt.Sprintf("Failed to save fallback state: %v", saveErr))
+					cancel()
+					return
+				}
+				e.queue.Push(task)
+				cancel()
+				return
+			}
+
 			// Check for link expiration (403 Forbidden)
 			if errors.Is(err, ErrLinkExpired) {
 				e.logger.Warn("Link expired - pausing for URL refresh", "id", task.ID)
 				task.Status = StatusNeedsAuth
-				task.MetaJSON = e.serializeState(task, completedParts)
+				task.MetaJSON = e.serializeState(task, completedParts, partPlan)
 				e.storage.SaveTask(*task)
 				cancel()
 				if e.ctx != nil {
@@ -306,6 +332,7 @@ Loop:
 			if e.ctx != nil {
 				runtime.EventsEmit(e.ctx, "download:progress", map[string]interface{}{
 					"id":         task.ID,
+					"status":     task.Status,
 					"progress":   task.Progress,
 					"speed":      task.Speed,
 					"eta":        task.TimeRemaining,
