@@ -47,8 +47,6 @@ func (e *TachyonEngine) downloadWorker(ctx context.Context, taskID string, urlSt
 func (e *TachyonEngine) processDownloadPart(ctx context.Context, taskID string, urlStr string, host string, file *os.File, part DownloadPart, retryCh chan DownloadPart, partDoneCh chan<- int, errCh chan<- error, downloadedBytes *int64, errorCount *atomic.Int32, headersStr string, cookiesStr string) {
 	err := e.downloadPart(ctx, taskID, urlStr, file, part, BufferSize, headersStr, cookiesStr)
 	if err != nil {
-		// Record error for congestion control
-		e.congestionController.RecordOutcome(host, 0, err)
 		errorCount.Add(1)
 
 		// Check for ErrLinkExpired (403)
@@ -77,7 +75,6 @@ func (e *TachyonEngine) processDownloadPart(ctx context.Context, taskID string, 
 		}
 	} else {
 		// Success
-		e.congestionController.RecordOutcome(host, 0, nil)
 		atomic.AddInt64(downloadedBytes, part.EndOffset-part.StartOffset+1)
 		partDoneCh <- part.ID
 	}

@@ -175,18 +175,9 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 	}()
 
 	// 5. Worker Swarm (Consumers)
-	currentConcurrency := 1
-	maxTaskConcurrency := 32
 	u, _ := url.Parse(task.URL)
 	host := u.Host
 
-	activeWorkers := 0
-
-	// Channels for dynamic scaling
-	scaleUpCh := make(chan struct{}, maxTaskConcurrency)
-	_ = scaleUpCh // Avoid unused warning
-
-	// Error tracking for Congestion Control
 	var errorCount atomic.Int32
 
 	wg := &sync.WaitGroup{}
@@ -204,19 +195,20 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 
 	var downloadedBytes int64 = initialBytes
 
-	// Helper to spawn workers
-	spawnWorker := func() {
+	// Spawn static worker pool
+	workerCount := MaxWorkersPerTask
+	if numParts < workerCount {
+		workerCount = numParts
+	}
+	if !probe.AcceptRanges {
+		workerCount = 1
+	}
+	for i := 0; i < workerCount; i++ {
 		wg.Add(1)
-		activeWorkers++
 		go func() {
 			defer wg.Done()
 			e.downloadWorker(ctx, task.ID, task.URL, host, file, partCh, retryCh, partDoneCh, errCh, &downloadedBytes, &errorCount, task.Headers, task.Cookies)
 		}()
-	}
-
-	// Initial Spawn
-	for i := 0; i < currentConcurrency; i++ {
-		spawnWorker()
 	}
 
 	// 6. Monitor Progress & Waits
@@ -226,10 +218,8 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 		close(doneCh)
 	}()
 
-	ticker := time.NewTicker(200 * time.Millisecond)
-	congestionTicker := time.NewTicker(2 * time.Second)
+	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
-	defer congestionTicker.Stop()
 
 	// Speed calculation variables
 	var lastDownloadedBytes int64 = atomic.LoadInt64(&downloadedBytes)
@@ -283,22 +273,6 @@ Loop:
 			completedParts[id] = true
 			if len(completedParts) == numParts {
 				break Loop
-			}
-
-		case <-congestionTicker.C:
-			// Congestion Control / Auto-Tuning
-			ideal := e.congestionController.GetIdealConcurrency(host)
-			maxTaskConcurrency = ideal
-
-			// Scale Up Check
-			if activeWorkers < maxTaskConcurrency {
-				toAdd := maxTaskConcurrency - activeWorkers
-				if toAdd > 2 {
-					toAdd = 2
-				}
-				for i := 0; i < toAdd; i++ {
-					spawnWorker()
-				}
 			}
 
 		case <-ticker.C:

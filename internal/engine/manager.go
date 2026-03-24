@@ -21,6 +21,7 @@ import (
 const (
 	DownloadChunkSize = 1 * 1024 * 1024 // 1MB Part Size
 	BufferSize        = 32 * 1024       // 32KB Buffer for CopyBuffer
+	MaxWorkersPerTask = 8               // Static worker pool size per task
 	GenericUserAgent  = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36"
 
 	// Status for tasks needing URL refresh (403 received)
@@ -56,8 +57,7 @@ type TachyonEngine struct {
 	organizer *filesystem.SmartOrganizer
 
 	// Phase 7 Components
-	stateManager         *StateManager
-	congestionController *network.CongestionController
+	stateManager *StateManager
 
 	// Security
 	scanner security.Scanner
@@ -105,17 +105,16 @@ func NewEngine(logger *slog.Logger, storage *storage.Storage) *TachyonEngine {
 				return &b
 			},
 		},
-		httpClient:           client,
-		stats:                analytics.NewStatsManager(storage, filesystem.GetDefaultDownloadPath),
-		maxConcurrent:        5, // System wide limit of downloads
-		runningDownloads:     0,
-		bandwidthManager:     network.NewBandwidthManager(),
-		allocator:            filesystem.NewAllocator(),
-		verifier:             integrity.NewFileVerifier(),
-		organizer:            filesystem.NewSmartOrganizer(),
-		stateManager:         NewStateManager(),
-		congestionController: network.NewCongestionController(1, 32),
-		scanner:              security.NewScanner(logger),
+		httpClient:       client,
+		stats:            analytics.NewStatsManager(storage, filesystem.GetDefaultDownloadPath),
+		maxConcurrent:    5, // System wide limit of downloads
+		runningDownloads: 0,
+		bandwidthManager: network.NewBandwidthManager(),
+		allocator:        filesystem.NewAllocator(),
+		verifier:         integrity.NewFileVerifier(),
+		organizer:        filesystem.NewSmartOrganizer(),
+		stateManager:     NewStateManager(),
+		scanner:          security.NewScanner(logger),
 	}
 	e.workerCond = sync.NewCond(&e.workerMutex)
 

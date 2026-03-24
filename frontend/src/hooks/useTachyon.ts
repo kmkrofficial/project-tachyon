@@ -99,7 +99,7 @@ export function useTachyon() {
         });
 
         // Listen for Errors
-        const cleanupFailed = EventsOn("download:failed", (data: any) => {
+        const cleanupFailed = EventsOn("download:error", (data: any) => {
             setDownloads((prev) => ({
                 ...prev,
                 [data.id]: {
@@ -135,7 +135,7 @@ export function useTachyon() {
             EventsOff("download:completed");
             EventsOff("download:paused");
             EventsOff("download:deleted");
-            EventsOff("download:failed");
+            EventsOff("download:error");
             EventsOff("download:stopped");
             EventsOff("queue:reordered");
         };
