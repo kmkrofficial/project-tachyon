@@ -12,6 +12,7 @@ import { useTheme } from './hooks/useTheme';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { EventsOn } from '../wailsjs/runtime/runtime';
+import * as AppBinding from '../wailsjs/go/app/App';
 
 function App() {
     const [activeTab, setActiveTab] = useState("all");
@@ -118,10 +119,8 @@ function App() {
                 {/* Fixed Header */}
                 <Header
                     onAddDownload={() => setIsModalOpen(true)}
-                    // @ts-ignore
-                    onPauseAll={() => window.go.app.App.PauseAllDownloads()}
-                    // @ts-ignore
-                    onResumeAll={() => window.go.app.App.ResumeAllDownloads()}
+                    onPauseAll={() => AppBinding.PauseAllDownloads().catch(console.error)}
+                    onResumeAll={() => AppBinding.ResumeAllDownloads().catch(console.error)}
                     globalSpeed={totalSpeed}
                 />
 

@@ -1,11 +1,22 @@
 package api
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
+
+	"project-tachyon/internal/engine"
+	"project-tachyon/internal/storage"
+
+	"github.com/glebarez/sqlite"
+	"gorm.io/gorm"
 )
 
 // newRequest creates an httptest request for API tests.
@@ -21,233 +32,382 @@ func serve(h http.Handler, req *http.Request) *httptest.ResponseRecorder {
 	return rec
 }
 
-// --- JSON-RPC types ---
+// --- MCP test helpers ---
 
-func TestJsonRpcRequest_Unmarshal(t *testing.T) {
-	tests := []struct {
-		name   string
-		input  string
-		method string
-		id     interface{}
-	}{
-		{
-			"download request",
-			`{"jsonrpc":"2.0","method":"tachyon_download","params":{"url":"https://example.com/file.zip"},"id":1}`,
-			"tachyon_download",
-			float64(1), // JSON numbers decode to float64
-		},
-		{
-			"list request",
-			`{"jsonrpc":"2.0","method":"tachyon_list","params":{},"id":"abc"}`,
-			"tachyon_list",
-			"abc",
-		},
-		{
-			"tools/list",
-			`{"jsonrpc":"2.0","method":"tools/list","id":42}`,
-			"tools/list",
-			float64(42),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var req JsonRpcRequest
-			if err := json.Unmarshal([]byte(tt.input), &req); err != nil {
-				t.Fatalf("unmarshal failed: %v", err)
-			}
-			if req.Method != tt.method {
-				t.Errorf("method = %q, want %q", req.Method, tt.method)
-			}
-			if req.JSONRPC != "2.0" {
-				t.Error("jsonrpc should be 2.0")
-			}
-		})
-	}
-}
-
-func TestJsonRpcRequest_InvalidJSON(t *testing.T) {
-	var req JsonRpcRequest
-	err := json.Unmarshal([]byte("not json"), &req)
-	if err == nil {
-		t.Error("expected error for invalid JSON")
-	}
-}
-
-func TestJsonRpcResponse_Marshal(t *testing.T) {
-	resp := JsonRpcResponse{
-		JSONRPC: "2.0",
-		Result:  map[string]string{"status": "ok"},
-		ID:      1,
-	}
-
-	data, err := json.Marshal(resp)
+// newTestMCPServer creates an MCPServer backed by an in-memory DB, writing to buf.
+func newTestMCPServer(t *testing.T, buf *bytes.Buffer) *MCPServer {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
-		t.Fatalf("marshal failed: %v", err)
-	}
-
-	var decoded map[string]interface{}
-	json.Unmarshal(data, &decoded)
-
-	if decoded["jsonrpc"] != "2.0" {
-		t.Error("missing jsonrpc field")
-	}
-	result := decoded["result"].(map[string]interface{})
-	if result["status"] != "ok" {
-		t.Error("result mismatch")
-	}
-}
-
-func TestJsonRpcResponse_ErrorMarshal(t *testing.T) {
-	resp := JsonRpcResponse{
-		JSONRPC: "2.0",
-		Error:   &RpcError{Code: -32601, Message: "Method not found"},
-		ID:      "req-1",
-	}
-
-	data, err := json.Marshal(resp)
-	if err != nil {
-		t.Fatalf("marshal failed: %v", err)
-	}
-
-	var decoded map[string]interface{}
-	json.Unmarshal(data, &decoded)
-
-	errObj := decoded["error"].(map[string]interface{})
-	if errObj["code"].(float64) != -32601 {
-		t.Error("error code mismatch")
-	}
-	if errObj["message"] != "Method not found" {
-		t.Error("error message mismatch")
-	}
-	if decoded["result"] != nil {
-		t.Error("result should be omitted on error")
-	}
-}
-
-// --- DownloadParams ---
-
-func TestDownloadParams_Unmarshal(t *testing.T) {
-	input := `{"url":"https://example.com/file.zip","path":"/downloads","filename":"custom.zip"}`
-	var params DownloadParams
-	if err := json.Unmarshal([]byte(input), &params); err != nil {
-		t.Fatalf("unmarshal failed: %v", err)
-	}
-	if params.URL != "https://example.com/file.zip" {
-		t.Errorf("URL = %q", params.URL)
-	}
-	if params.Path != "/downloads" {
-		t.Errorf("Path = %q", params.Path)
-	}
-	if params.Filename != "custom.zip" {
-		t.Errorf("Filename = %q", params.Filename)
-	}
-}
-
-func TestDownloadParams_MinimalInput(t *testing.T) {
-	input := `{"url":"https://example.com/file.zip"}`
-	var params DownloadParams
-	if err := json.Unmarshal([]byte(input), &params); err != nil {
 		t.Fatal(err)
 	}
-	if params.URL == "" {
-		t.Error("URL should be set")
+	db.AutoMigrate(&storage.DownloadTask{}, &storage.DownloadLocation{}, &storage.DailyStat{}, &storage.AppSetting{})
+	store := &storage.Storage{DB: db}
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	eng := engine.NewEngine(logger, store)
+
+	return NewMCPServerWithIO(eng, buf)
+}
+
+// sendRPC feeds a single JSON-RPC line into the MCPServer and returns the response.
+func sendRPC(t *testing.T, srv *MCPServer, msg string) JsonRpcResponse {
+	t.Helper()
+	srv.handleMessage([]byte(msg))
+
+	// Read what the server wrote
+	var buf *bytes.Buffer
+	if b, ok := srv.writer.(*bytes.Buffer); ok {
+		buf = b
+	} else {
+		t.Fatal("writer is not a *bytes.Buffer")
 	}
-	if params.Path != "" || params.Filename != "" {
-		t.Error("optional fields should be empty")
+
+	var resp JsonRpcResponse
+	scanner := bufio.NewScanner(buf)
+	if scanner.Scan() {
+		if err := json.Unmarshal(scanner.Bytes(), &resp); err != nil {
+			t.Fatalf("unmarshal response: %v\nraw: %s", err, scanner.Text())
+		}
+	} else {
+		t.Fatal("no response written")
+	}
+	buf.Reset()
+	return resp
+}
+
+// --- MCP lifecycle tests ---
+
+func TestMCP_Initialize(t *testing.T) {
+	var buf bytes.Buffer
+	srv := newTestMCPServer(t, &buf)
+
+	resp := sendRPC(t, srv, `{"jsonrpc":"2.0","method":"initialize","params":{},"id":1}`)
+	if resp.Error != nil {
+		t.Fatalf("initialize failed: %s", resp.Error.Message)
+	}
+
+	result := resp.Result.(map[string]interface{})
+	if result["protocolVersion"] == nil {
+		t.Error("missing protocolVersion")
+	}
+	caps := result["capabilities"].(map[string]interface{})
+	if caps["tools"] == nil {
+		t.Error("missing tools capability")
+	}
+	info := result["serverInfo"].(map[string]interface{})
+	if info["name"] != "tachyon" {
+		t.Errorf("expected server name 'tachyon', got %v", info["name"])
 	}
 }
 
-// --- BrowserParams ---
+func TestMCP_Initialized_NoResponse(t *testing.T) {
+	var buf bytes.Buffer
+	srv := newTestMCPServer(t, &buf)
 
-func TestBrowserParams_Unmarshal(t *testing.T) {
-	input := `{"url":"https://cdn.example.com/file.bin","cookies":"session=abc","user_agent":"MyUA","referer":"https://origin.com","filename":"download.bin"}`
-	var params BrowserParams
-	if err := json.Unmarshal([]byte(input), &params); err != nil {
-		t.Fatal(err)
-	}
-	if params.URL != "https://cdn.example.com/file.bin" {
-		t.Errorf("URL = %q", params.URL)
-	}
-	if params.Cookies != "session=abc" {
-		t.Errorf("Cookies = %q", params.Cookies)
-	}
-	if params.UserAgent != "MyUA" {
-		t.Errorf("UserAgent = %q", params.UserAgent)
-	}
-	if params.Referer != "https://origin.com" {
-		t.Errorf("Referer = %q", params.Referer)
-	}
-	if params.Filename != "download.bin" {
-		t.Errorf("Filename = %q", params.Filename)
+	srv.handleMessage([]byte(`{"jsonrpc":"2.0","method":"notifications/initialized"}`))
+	if buf.Len() != 0 {
+		t.Error("notifications/initialized should not produce a response")
 	}
 }
 
-func TestBrowserParams_EmptyFields(t *testing.T) {
-	input := `{"url":"https://example.com/file"}`
-	var params BrowserParams
-	if err := json.Unmarshal([]byte(input), &params); err != nil {
-		t.Fatal(err)
+// --- handleMessage routing tests ---
+
+func TestMCP_HandleMessage_InvalidJSON(t *testing.T) {
+	var buf bytes.Buffer
+	srv := newTestMCPServer(t, &buf)
+
+	resp := sendRPC(t, srv, "not valid json{{{")
+	if resp.Error == nil {
+		t.Fatal("expected error for invalid JSON")
 	}
-	if params.Cookies != "" || params.UserAgent != "" || params.Referer != "" || params.Filename != "" {
-		t.Error("optional fields should be empty")
-	}
-}
-
-// --- handleBrowserTrigger ---
-
-func TestHandleBrowserTrigger_CORS_Preflight(t *testing.T) {
-	s := newTestControlServer(t)
-	handler := http.HandlerFunc(s.handleBrowserTrigger)
-
-	req := newRequest(t, "OPTIONS", "/v1/browser/trigger", "")
-	rec := serve(handler, req)
-
-	if rec.Code != 200 {
-		t.Errorf("expected 200, got %d", rec.Code)
-	}
-	if rec.Header().Get("Access-Control-Allow-Origin") != "*" {
-		t.Error("missing CORS header")
+	if resp.Error.Code != -32700 {
+		t.Errorf("expected parse error code -32700, got %d", resp.Error.Code)
 	}
 }
 
-func TestHandleBrowserTrigger_EmptyURL(t *testing.T) {
-	s := newTestControlServer(t)
-	handler := http.HandlerFunc(s.handleBrowserTrigger)
+func TestMCP_HandleMessage_UnknownMethod(t *testing.T) {
+	var buf bytes.Buffer
+	srv := newTestMCPServer(t, &buf)
 
-	req := newRequest(t, "POST", "/v1/browser/trigger", `{"url":""}`)
-	rec := serve(handler, req)
-
-	if rec.Code != 400 {
-		t.Errorf("expected 400 for empty URL, got %d", rec.Code)
+	resp := sendRPC(t, srv, `{"jsonrpc":"2.0","method":"unknown_method","id":1}`)
+	if resp.Error == nil {
+		t.Fatal("expected error for unknown method")
+	}
+	if resp.Error.Code != -32601 {
+		t.Errorf("expected method-not-found code -32601, got %d", resp.Error.Code)
+	}
+	if resp.ID != float64(1) {
+		t.Errorf("response ID should echo request ID")
 	}
 }
 
-func TestHandleBrowserTrigger_InvalidJSON(t *testing.T) {
-	s := newTestControlServer(t)
-	handler := http.HandlerFunc(s.handleBrowserTrigger)
+func TestMCP_HandleMessage_EmptyLine(t *testing.T) {
+	var buf bytes.Buffer
+	srv := newTestMCPServer(t, &buf)
 
-	req := newRequest(t, "POST", "/v1/browser/trigger", "not json")
-	rec := serve(handler, req)
+	input := strings.NewReader("\n\n\n")
+	srv.StartWithReader(input)
 
-	if rec.Code != 400 {
-		t.Errorf("expected 400, got %d", rec.Code)
+	if buf.Len() != 0 {
+		t.Errorf("empty lines should produce no output, got %q", buf.String())
 	}
 }
 
-func TestHandleBrowserTrigger_InvalidURL(t *testing.T) {
-	s := newTestControlServer(t)
-	handler := http.HandlerFunc(s.handleBrowserTrigger)
+// --- tools/list ---
 
-	req := newRequest(t, "POST", "/v1/browser/trigger", `{"url":"ftp://bad-scheme.com/file"}`)
-	rec := serve(handler, req)
+func TestMCP_ToolsList(t *testing.T) {
+	var buf bytes.Buffer
+	srv := newTestMCPServer(t, &buf)
 
-	if rec.Code != 400 {
-		t.Errorf("expected 400 for invalid URL scheme, got %d", rec.Code)
+	resp := sendRPC(t, srv, `{"jsonrpc":"2.0","method":"tools/list","id":10}`)
+	if resp.Error != nil {
+		t.Fatalf("tools/list returned error: %s", resp.Error.Message)
+	}
+
+	result, ok := resp.Result.(map[string]interface{})
+	if !ok {
+		t.Fatal("result should be a map")
+	}
+	tools, ok := result["tools"].([]interface{})
+	if !ok {
+		t.Fatal("tools key should be an array")
+	}
+	if len(tools) < 2 {
+		t.Errorf("expected at least 2 tools, got %d", len(tools))
+	}
+
+	// Verify tool names
+	names := make(map[string]bool)
+	for _, tool := range tools {
+		tm := tool.(map[string]interface{})
+		names[tm["name"].(string)] = true
+	}
+	if !names["tachyon_download"] {
+		t.Error("missing tachyon_download tool")
+	}
+	if !names["tachyon_list"] {
+		t.Error("missing tachyon_list tool")
 	}
 }
 
-// --- ParseCookieString additional tests ---
+func TestMCP_ToolsList_HasInputSchema(t *testing.T) {
+	var buf bytes.Buffer
+	srv := newTestMCPServer(t, &buf)
+
+	resp := sendRPC(t, srv, `{"jsonrpc":"2.0","method":"tools/list","id":1}`)
+	result := resp.Result.(map[string]interface{})
+	tools := result["tools"].([]interface{})
+
+	for _, tool := range tools {
+		tm := tool.(map[string]interface{})
+		schema, ok := tm["inputSchema"]
+		if !ok || schema == nil {
+			t.Errorf("tool %s missing inputSchema", tm["name"])
+		}
+	}
+}
+
+// --- tools/call: tachyon_download ---
+
+// toolCall is a helper to build a tools/call JSON-RPC message.
+func toolCall(id int, name string, args string) string {
+	return fmt.Sprintf(`{"jsonrpc":"2.0","method":"tools/call","params":{"name":%q,"arguments":%s},"id":%d}`, name, args, id)
+}
+
+func TestMCP_Download_MissingURL(t *testing.T) {
+	var buf bytes.Buffer
+	srv := newTestMCPServer(t, &buf)
+
+	resp := sendRPC(t, srv, toolCall(2, "tachyon_download", `{"url":""}`))
+	result := resp.Result.(map[string]interface{})
+	if result["isError"] != true {
+		t.Fatal("expected isError for empty URL")
+	}
+}
+
+func TestMCP_Download_InvalidToolCallParams(t *testing.T) {
+	var buf bytes.Buffer
+	srv := newTestMCPServer(t, &buf)
+
+	resp := sendRPC(t, srv, `{"jsonrpc":"2.0","method":"tools/call","params":"bad","id":3}`)
+	if resp.Error == nil {
+		t.Fatal("expected error for non-object params")
+	}
+}
+
+func TestMCP_Download_InvalidURLScheme(t *testing.T) {
+	var buf bytes.Buffer
+	srv := newTestMCPServer(t, &buf)
+
+	resp := sendRPC(t, srv, toolCall(4, "tachyon_download", `{"url":"ftp://bad.com/file"}`))
+	result := resp.Result.(map[string]interface{})
+	if result["isError"] != true {
+		t.Fatal("expected isError for ftp scheme")
+	}
+}
+
+func TestMCP_Download_ValidURL(t *testing.T) {
+	var buf bytes.Buffer
+	srv := newTestMCPServer(t, &buf)
+
+	resp := sendRPC(t, srv, toolCall(5, "tachyon_download", `{"url":"https://example.com/file.zip","path":".","filename":"test.zip"}`))
+	if resp.Error != nil {
+		t.Fatalf("unexpected error: %s", resp.Error.Message)
+	}
+
+	result := resp.Result.(map[string]interface{})
+	if result["isError"] == true {
+		t.Error("expected success")
+	}
+	content := result["content"].([]interface{})
+	text := content[0].(map[string]interface{})["text"].(string)
+	if !strings.Contains(text, "queued") {
+		t.Errorf("expected 'queued' in result text, got: %s", text)
+	}
+}
+
+func TestMCP_Download_PathTraversalFilename(t *testing.T) {
+	var buf bytes.Buffer
+	srv := newTestMCPServer(t, &buf)
+
+	resp := sendRPC(t, srv, toolCall(6, "tachyon_download", `{"url":"https://example.com/file.zip","filename":"../../etc/passwd"}`))
+	result := resp.Result.(map[string]interface{})
+	if result["isError"] == true {
+		t.Fatal("sanitized filename should succeed")
+	}
+}
+
+func TestMCP_Download_LoopbackBlocked(t *testing.T) {
+	var buf bytes.Buffer
+	srv := newTestMCPServer(t, &buf)
+
+	resp := sendRPC(t, srv, toolCall(7, "tachyon_download", `{"url":"http://127.0.0.1/secret"}`))
+	result := resp.Result.(map[string]interface{})
+	if result["isError"] != true {
+		t.Fatal("expected isError for loopback URL")
+	}
+}
+
+func TestMCP_Download_UnknownTool(t *testing.T) {
+	var buf bytes.Buffer
+	srv := newTestMCPServer(t, &buf)
+
+	resp := sendRPC(t, srv, toolCall(8, "nonexistent_tool", `{}`))
+	if resp.Error == nil {
+		t.Fatal("expected error for unknown tool")
+	}
+}
+
+// --- tools/call: tachyon_list ---
+
+func TestMCP_List_EmptyHistory(t *testing.T) {
+	var buf bytes.Buffer
+	srv := newTestMCPServer(t, &buf)
+
+	resp := sendRPC(t, srv, toolCall(9, "tachyon_list", `{}`))
+	if resp.Error != nil {
+		t.Fatalf("unexpected error: %s", resp.Error.Message)
+	}
+	result := resp.Result.(map[string]interface{})
+	content := result["content"].([]interface{})
+	text := content[0].(map[string]interface{})["text"].(string)
+	if !strings.Contains(text, "No active") {
+		t.Errorf("expected 'No active' for empty list, got: %s", text)
+	}
+}
+
+func TestMCP_List_AfterDownload(t *testing.T) {
+	var buf bytes.Buffer
+	srv := newTestMCPServer(t, &buf)
+
+	// Queue a download first
+	sendRPC(t, srv, toolCall(100, "tachyon_download", `{"url":"https://example.com/file.zip","path":"."}`))
+
+	// Now list
+	resp := sendRPC(t, srv, toolCall(101, "tachyon_list", `{}`))
+	if resp.Error != nil {
+		t.Fatalf("list error: %s", resp.Error.Message)
+	}
+}
+
+// --- StartWithReader integration ---
+
+func TestMCP_StartWithReader_MultipleMessages(t *testing.T) {
+	var buf bytes.Buffer
+	srv := newTestMCPServer(t, &buf)
+
+	// Send three JSON-RPC messages: initialize + tools/list + unknown
+	input := strings.Join([]string{
+		`{"jsonrpc":"2.0","method":"initialize","params":{},"id":1}`,
+		`{"jsonrpc":"2.0","method":"tools/list","id":2}`,
+		`{"jsonrpc":"2.0","method":"unknown","id":3}`,
+	}, "\n")
+
+	srv.StartWithReader(strings.NewReader(input))
+
+	// Should have 3 lines of output
+	scanner := bufio.NewScanner(&buf)
+	count := 0
+	for scanner.Scan() {
+		count++
+		var resp JsonRpcResponse
+		if err := json.Unmarshal(scanner.Bytes(), &resp); err != nil {
+			t.Errorf("line %d: invalid JSON response: %v", count, err)
+		}
+	}
+	if count != 3 {
+		t.Errorf("expected 3 responses, got %d", count)
+	}
+}
+
+func TestMCP_StartWithReader_SkipsEmptyLines(t *testing.T) {
+	var buf bytes.Buffer
+	srv := newTestMCPServer(t, &buf)
+
+	input := "\n\n" + `{"jsonrpc":"2.0","method":"tools/list","id":1}` + "\n\n"
+	srv.StartWithReader(strings.NewReader(input))
+
+	scanner := bufio.NewScanner(&buf)
+	count := 0
+	for scanner.Scan() {
+		count++
+	}
+	if count != 1 {
+		t.Errorf("expected 1 response (empty lines skipped), got %d", count)
+	}
+}
+
+// --- Response format verification ---
+
+func TestMCP_ResponseFormat_JSONRPC(t *testing.T) {
+	var buf bytes.Buffer
+	srv := newTestMCPServer(t, &buf)
+
+	resp := sendRPC(t, srv, `{"jsonrpc":"2.0","method":"tools/list","id":"str-id"}`)
+	if resp.JSONRPC != "2.0" {
+		t.Errorf("jsonrpc field = %q, want 2.0", resp.JSONRPC)
+	}
+	if resp.ID != "str-id" {
+		t.Errorf("response ID should echo request ID, got %v", resp.ID)
+	}
+}
+
+func TestMCP_ResponseFormat_ErrorPreservesID(t *testing.T) {
+	var buf bytes.Buffer
+	srv := newTestMCPServer(t, &buf)
+
+	resp := sendRPC(t, srv, `{"jsonrpc":"2.0","method":"nonexistent","id":42}`)
+	if resp.ID != float64(42) {
+		t.Errorf("error response should preserve ID, got %v", resp.ID)
+	}
+	if resp.Error == nil {
+		t.Fatal("expected error")
+	}
+	if resp.Result != nil {
+		t.Error("error response should not have result")
+	}
+}
 
 func TestParseCookieString_Whitespace(t *testing.T) {
 	cookies := ParseCookieString("  a=1 ;  b=2  ")

@@ -244,6 +244,11 @@ func (e *TachyonEngine) PauseAllDownloads() {
 		if task.Status == "pending" {
 			task.Status = "paused"
 			e.storage.SaveTask(task)
+			if e.ctx != nil {
+				runtime.EventsEmit(e.ctx, "download:paused", map[string]interface{}{
+					"id": task.ID,
+				})
+			}
 		}
 	}
 
