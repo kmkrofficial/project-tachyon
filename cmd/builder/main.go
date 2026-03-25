@@ -185,7 +185,7 @@ func runRelease() {
 }
 
 // postProcessBuild renames and packages build artifacts
-func postProcessBuild(goos, goarch, buildDir string) error {
+func postProcessBuild(goos, _, buildDir string) error {
 	wailsBuildDir := "build/bin"
 
 	switch goos {

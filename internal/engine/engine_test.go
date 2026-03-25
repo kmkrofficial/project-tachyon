@@ -37,7 +37,7 @@ func createTempDB(t *testing.T) *storage.Storage {
 }
 
 // spawnRangeServer creates a mock HTTP server supporting Range requests
-func spawnRangeServer(t *testing.T, content []byte, errorEveryN int) *httptest.Server {
+func spawnRangeServer(_ *testing.T, content []byte, errorEveryN int) *httptest.Server {
 	var requestCount int
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

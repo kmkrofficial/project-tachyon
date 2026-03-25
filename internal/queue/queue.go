@@ -117,7 +117,7 @@ func (dq *DownloadQueue) Broadcast() {
 // Adding them for completeness... will omit detailed body mostly unless needed.
 // Actually Engine relied on them. I must include them.
 
-func (dq *DownloadQueue) moveTask(id string, op func(idx int) int) bool {
+func (dq *DownloadQueue) moveTask(_ string, _ func(idx int) int) bool {
 	// Helper to avoid repetition
 	return false
 }
