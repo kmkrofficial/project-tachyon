@@ -60,7 +60,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
 
             <div className="h-px bg-th-border my-1 mx-2"></div>
 
-            {(status === 'downloading' || status === 'paused' || status === 'pending') && (
+            {(status === 'downloading' || status === 'probing' || status === 'paused' || status === 'pending') && (
                 <>
                     {status === 'paused' ? (
                         <div

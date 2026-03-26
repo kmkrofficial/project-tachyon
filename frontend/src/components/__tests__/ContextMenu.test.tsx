@@ -14,6 +14,9 @@ describe('ContextMenu', () => {
         onDelete: vi.fn(),
         onRetry: vi.fn(),
         onSetPriority: vi.fn(),
+        onPause: vi.fn(),
+        onResume: vi.fn(),
+        onStop: vi.fn(),
         status: 'downloading',
     };
 

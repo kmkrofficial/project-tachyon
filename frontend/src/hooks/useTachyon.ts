@@ -165,15 +165,15 @@ export function useTachyon() {
                     id = await App.AddDownloadWithParams(url, path || "", filename || "", options);
                 } else if (App.AddDownloadWithOptions) {
                     id = await App.AddDownloadWithOptions(url, path || "", filename || "");
-
-                    // Also save the location if it's a custom path
-                    // Logic for saving location removed as it's handled elsewhere or pending implementation
-
                 } else if (filename) {
                     // Fallback
                     id = await App.AddDownloadWithFilename(url, filename);
                 } else {
                     id = await App.AddDownload(url);
+                }
+
+                if (!id) {
+                    throw new Error("Backend returned empty download ID");
                 }
 
                 setDownloads(prev => ({

@@ -94,6 +94,11 @@ func (e *TachyonEngine) ProbeURL(urlStr string, headersStr string, cookiesStr st
 		return result, nil
 	}
 
+	// Network-level failure (server unreachable) — GET would fail identically
+	if err != nil && result == nil {
+		return nil, err
+	}
+
 	// 2. Fallback to GET+Range for servers that don't support HEAD properly
 	e.logger.Info("HEAD probe insufficient, falling back to GET+Range", "url", urlStr)
 	return e.probeGETRange(ctx, urlStr, headersStr, cookiesStr)

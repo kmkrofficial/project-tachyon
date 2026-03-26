@@ -273,9 +273,12 @@ func TestAddDownload_InvalidURL(t *testing.T) {
 	a, cleanup := newTestApp(t)
 	defer cleanup()
 
-	result := a.AddDownload("not-a-valid-url")
-	if result == "" {
-		t.Error("expected non-empty result for invalid URL")
+	result, err := a.AddDownload("not-a-valid-url")
+	if err == nil {
+		t.Error("expected error for invalid URL")
+	}
+	if result != "" {
+		t.Errorf("expected empty result for invalid URL, got %q", result)
 	}
 }
 

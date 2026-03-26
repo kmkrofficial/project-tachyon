@@ -137,7 +137,11 @@ function App() {
                 if (item.status !== activeTab) return false;
             }
             // Status sidebar filter
-            if (statusFilter !== 'all' && item.status !== statusFilter) return false;
+            if (statusFilter !== 'all') {
+                // Treat "probing" as "downloading" for filter purposes
+                const effectiveStatus = item.status === 'probing' ? 'downloading' : item.status;
+                if (effectiveStatus !== statusFilter) return false;
+            }
             // Category filter
             if (categoryFilter !== 'all') {
                 const ext = item.filename?.split('.').pop()?.toLowerCase() || '';
@@ -159,7 +163,7 @@ function App() {
         })
         .sort((a, b) => {
             // Sort active/pending items by Queue Order (Ascending)
-            const activeStates = ["downloading", "pending", "paused", "stopped"];
+            const activeStates = ["downloading", "probing", "pending", "paused", "stopped"];
             const isActiveA = activeStates.includes(a.status);
             const isActiveB = activeStates.includes(b.status);
 

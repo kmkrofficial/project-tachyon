@@ -31,6 +31,7 @@ const statusColors: Record<string, string> = {
     error: "bg-red-500/10 text-red-500 border-red-500/20",
     paused: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
     pending: "bg-th-raised text-th-text-s border-th-border",
+    probing: "bg-th-accent/10 text-th-accent-t border-th-accent/20",
     stopped: "bg-th-raised text-th-text-s border-th-border",
 };
 
@@ -224,7 +225,7 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
                                                 statusColors[item.status] || statusColors.pending,
                                                 isMissing ? "opacity-50" : ""
                                             )}>
-                                                {item.status === 'downloading' && <span className="w-1 h-1 rounded-full bg-th-accent-t animate-pulse" />}
+                                                {(item.status === 'downloading' || item.status === 'probing') && <span className="w-1 h-1 rounded-full bg-th-accent-t animate-pulse" />}
                                                 {item.status === 'error' && <AlertCircle size={10} />}
                                                 {item.status}
                                             </span>

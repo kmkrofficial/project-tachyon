@@ -94,6 +94,7 @@ func (e *TachyonEngine) StartDownload(urlStr string, destPath string, customFile
 
 	if err := e.storage.SaveTask(task); err != nil {
 		e.logger.Error("Failed to save initial task", "error", err)
+		return "", fmt.Errorf("failed to persist download: %w", err)
 	}
 
 	e.queue.Push(&task)

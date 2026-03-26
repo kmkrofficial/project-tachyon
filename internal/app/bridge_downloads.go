@@ -1,52 +1,54 @@
 package app
 
 import (
+	"fmt"
+
 	"project-tachyon/internal/engine"
 	"project-tachyon/internal/filesystem"
 	"project-tachyon/internal/storage"
 )
 
 // AddDownload is exposed to the Frontend
-func (a *App) AddDownload(url string) string {
+func (a *App) AddDownload(url string) (string, error) {
 	a.logger.Info("frontend_request", "method", "AddDownload", "url", url)
 
 	// Use Tachyon Downloads folder (auto-created with subfolders)
 	defaultPath, err := filesystem.GetDefaultDownloadPath()
 	if err != nil {
 		a.logger.Error("Failed to get default download path", "error", err)
-		return "ERROR: " + err.Error()
+		return "", fmt.Errorf("failed to resolve download path: %w", err)
 	}
 
 	id, err := a.engine.StartDownload(url, defaultPath, "", nil)
 	if err != nil {
 		a.logger.Error("Failed to start download", "error", err)
-		return "ERROR: " + err.Error()
+		return "", err
 	}
 
-	return id
+	return id, nil
 }
 
 // AddDownloadWithFilename allows specifying the filename (e.g. for duplicates)
-func (a *App) AddDownloadWithFilename(url, filename string) string {
+func (a *App) AddDownloadWithFilename(url, filename string) (string, error) {
 	a.logger.Info("frontend_request", "method", "AddDownloadWithFilename", "url", url, "filename", filename)
 
 	defaultPath, err := filesystem.GetDefaultDownloadPath()
 	if err != nil {
 		a.logger.Error("Failed to get default download path", "error", err)
-		return "ERROR: " + err.Error()
+		return "", fmt.Errorf("failed to resolve download path: %w", err)
 	}
 
 	id, err := a.engine.StartDownload(url, defaultPath, filename, nil)
 	if err != nil {
 		a.logger.Error("Failed to start download", "error", err)
-		return "ERROR: " + err.Error()
+		return "", err
 	}
 
-	return id
+	return id, nil
 }
 
 // AddDownloadWithOptions allows specifying path and filename
-func (a *App) AddDownloadWithOptions(url, path, filename string) string {
+func (a *App) AddDownloadWithOptions(url, path, filename string) (string, error) {
 	a.logger.Info("frontend_request", "method", "AddDownloadWithOptions", "url", url, "path", path, "filename", filename)
 
 	if path == "" {
@@ -54,21 +56,21 @@ func (a *App) AddDownloadWithOptions(url, path, filename string) string {
 		path, err = filesystem.GetDefaultDownloadPath()
 		if err != nil {
 			a.logger.Error("Failed to get default download path", "error", err)
-			return "ERROR: " + err.Error()
+			return "", fmt.Errorf("failed to resolve download path: %w", err)
 		}
 	}
 
 	id, err := a.engine.StartDownload(url, path, filename, nil)
 	if err != nil {
 		a.logger.Error("Failed to start download", "error", err)
-		return "ERROR: " + err.Error()
+		return "", err
 	}
 
-	return id
+	return id, nil
 }
 
 // AddDownloadWithParams allows specifying options like StartTime, Headers, Cookies, etc.
-func (a *App) AddDownloadWithParams(url, path, filename string, options map[string]string) string {
+func (a *App) AddDownloadWithParams(url, path, filename string, options map[string]string) (string, error) {
 	a.logger.Info("frontend_request", "method", "AddDownloadWithParams", "url", url, "options", options)
 
 	if path == "" {
@@ -76,17 +78,17 @@ func (a *App) AddDownloadWithParams(url, path, filename string, options map[stri
 		path, err = filesystem.GetDefaultDownloadPath()
 		if err != nil {
 			a.logger.Error("Failed to get default download path", "error", err)
-			return "ERROR: " + err.Error()
+			return "", fmt.Errorf("failed to resolve download path: %w", err)
 		}
 	}
 
 	id, err := a.engine.StartDownload(url, path, filename, options)
 	if err != nil {
 		a.logger.Error("Failed to start download", "error", err)
-		return "ERROR: " + err.Error()
+		return "", err
 	}
 
-	return id
+	return id, nil
 }
 
 // GetDefaultDownloadPath returns the system default download directory
@@ -162,11 +164,13 @@ func (a *App) StopDownload(id string) {
 }
 
 // DeleteDownload deletes a download task and optionally the file
-func (a *App) DeleteDownload(id string, deleteFile bool) {
+func (a *App) DeleteDownload(id string, deleteFile bool) error {
 	a.logger.Info("frontend_request", "method", "DeleteDownload", "id", id, "deleteFile", deleteFile)
 	if err := a.engine.DeleteDownload(id, deleteFile); err != nil {
 		a.logger.Error("Failed to delete download", "id", id, "error", err)
+		return err
 	}
+	return nil
 }
 
 // ReorderDownload moves a download in the queue

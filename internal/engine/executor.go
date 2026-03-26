@@ -78,6 +78,14 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 	defer e.activeDownloads.Delete(task.ID)
 
 	// 2. Probe & Validate
+	task.Status = "probing"
+	if e.ctx != nil {
+		runtime.EventsEmit(e.ctx, "download:progress", map[string]interface{}{
+			"id":       task.ID,
+			"status":   "probing",
+			"filename": task.Filename,
+		})
+	}
 	probe, err := e.ProbeURL(task.URL, task.Headers, task.Cookies)
 	if err != nil {
 		e.failTask(task, fmt.Sprintf("Probe failed: %v", err))
