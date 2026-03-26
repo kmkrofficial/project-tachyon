@@ -5,28 +5,57 @@
 :root {
     font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
 
-    /* Light theme tokens */
-    --th-base:     248 250 252;   /* slate-50  */
-    --th-surface:  255 255 255;   /* white     */
-    --th-raised:   241 245 249;   /* slate-100 */
-    --th-overlay:  226 232 240;   /* slate-200 */
-    --th-border:   203 213 225;   /* slate-300 */
-    --th-border-s: 226 232 240;   /* slate-200 */
-    --th-text:     15 23 42;      /* slate-900 */
-    --th-text-s:   71 85 105;     /* slate-500 */
-    --th-text-m:   100 116 139;   /* slate-500 */
+    /* Light theme — Windows 11 neutral grays */
+    --th-base:     243 243 243;   /* #F3F3F3 */
+    --th-surface:  255 255 255;   /* #FFFFFF */
+    --th-raised:   249 249 249;   /* #F9F9F9 */
+    --th-overlay:  224 224 224;   /* #E0E0E0 */
+    --th-border:   229 229 229;   /* #E5E5E5 */
+    --th-border-s: 235 235 235;   /* #EBEBEB */
+    --th-text:     26 26 26;      /* #1A1A1A */
+    --th-text-s:   97 97 97;      /* #616161 */
+    --th-text-m:   138 138 138;   /* #8A8A8A */
+
+    /* Accent — Windows Blue */
+    --th-accent:   0 103 192;     /* #0067C0 */
+    --th-accent-h: 0 120 212;    /* #0078D4 hover */
+    --th-accent-t: 0 95 184;     /* #005FB8 text */
 }
 
 .dark {
-    --th-base:     2 6 23;        /* slate-950 */
-    --th-surface:  15 23 42;      /* slate-900 */
-    --th-raised:   30 41 59;      /* slate-800 */
-    --th-overlay:  51 65 85;      /* slate-700 */
-    --th-border:   30 41 59;      /* slate-800 */
-    --th-border-s: 51 65 85;      /* slate-700 */
-    --th-text:     226 232 240;   /* slate-200 */
-    --th-text-s:   148 163 184;   /* slate-400 */
-    --th-text-m:   100 116 139;   /* slate-500 */
+    /* Dark theme — Windows 11 dark grays */
+    --th-base:     32 32 32;      /* #202020 */
+    --th-surface:  45 45 45;      /* #2D2D2D */
+    --th-raised:   56 56 56;      /* #383838 */
+    --th-overlay:  74 74 74;      /* #4A4A4A */
+    --th-border:   61 61 61;      /* #3D3D3D */
+    --th-border-s: 74 74 74;      /* #4A4A4A */
+    --th-text:     255 255 255;   /* #FFFFFF */
+    --th-text-s:   154 154 154;   /* #9A9A9A */
+    --th-text-m:   113 113 113;   /* #717171 */
+
+    /* Accent — Windows Blue (dark) */
+    --th-accent:   0 120 212;     /* #0078D4 */
+    --th-accent-h: 27 138 228;   /* lighter hover */
+    --th-accent-t: 96 205 255;   /* #60CDFF */
+}
+
+.black {
+    /* Deep Black — AMOLED / true-black theme */
+    --th-base:     0 0 0;         /* #000000 */
+    --th-surface:  12 12 12;      /* #0C0C0C */
+    --th-raised:   24 24 24;      /* #181818 */
+    --th-overlay:  48 48 48;      /* #303030 */
+    --th-border:   32 32 32;      /* #202020 */
+    --th-border-s: 48 48 48;      /* #303030 */
+    --th-text:     255 255 255;   /* #FFFFFF */
+    --th-text-s:   154 154 154;   /* #9A9A9A */
+    --th-text-m:   102 102 102;   /* #666666 */
+
+    /* Accent — Windows Blue (dark) */
+    --th-accent:   0 120 212;     /* #0078D4 */
+    --th-accent-h: 27 138 228;   /* lighter hover */
+    --th-accent-t: 96 205 255;   /* #60CDFF */
 }
 
 @layer base {
@@ -74,4 +103,9 @@
 
 .animate-slide-in {
     animation: slide-in 0.3s ease-out forwards;
+}
+
+/* Range input accent color using theme token */
+.accent-th-accent {
+    accent-color: rgb(var(--th-accent));
 }

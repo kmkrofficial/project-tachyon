@@ -11,7 +11,7 @@ export function ProgressBar({ progress, status = "downloading" }: ProgressBarPro
             case "completed": return "bg-green-500";
             case "error": return "bg-red-500";
             case "paused": return "bg-yellow-500";
-            default: return "bg-blue-500";
+            default: return "bg-th-accent";
         }
     };
 

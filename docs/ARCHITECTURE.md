@@ -1,6 +1,6 @@
-# Project Tachyon Architecture
+# Tachyon Download Manager Architecture
 
-This document describes the high-level architecture of Project Tachyon, a modern Wails-based download manager.
+This document describes the high-level architecture of Tachyon Download Manager, a modern Wails-based download manager.
 
 ## Project Structure
 

@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { X, Globe, Link2, FolderOpen, AlertTriangle, FileCheck, Copy, DownloadCloud, Loader2, Calendar, Clock } from 'lucide-react';
 import prettyBytes from 'pretty-bytes';
+import { Checkbox } from './common/Checkbox';
+import { Dropdown } from './common/Dropdown';
 
 interface AddURLModalProps {
     isOpen: boolean;
     onClose: () => void;
     onAdd: (url: string, filename?: string, size?: number, path?: string, options?: any) => Promise<string>;
+    initialUrl?: string;
 }
 
 type ModalStep = 'input' | 'probing' | 'confirm';
 
-export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd }) => {
+export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd, initialUrl }) => {
     const [url, setUrl] = useState("");
     const [step, setStep] = useState<ModalStep>('input');
     const [error, setError] = useState("");
@@ -40,7 +43,9 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
                 });
             }
 
-            if (!url && step === 'input') {
+            if (initialUrl) {
+                setUrl(initialUrl);
+            } else if (!url && step === 'input') {
                 navigator.clipboard.readText().then(text => {
                     const trimmed = text?.trim();
                     if (trimmed && /^https?:\/\/.+/i.test(trimmed)) {
@@ -52,7 +57,7 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
             }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isOpen]);
+    }, [isOpen, initialUrl]);
 
     if (!isOpen) return null;
 
@@ -167,8 +172,7 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
         performDownload(newName);
     };
 
-    const handlePathChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const val = e.target.value;
+    const handlePathChange = (val: string) => {
         if (val === 'custom') {
             setShowPathInput(true);
             setDownloadPath("");
@@ -184,7 +188,7 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
                 {/* Header */}
                 <div className="flex justify-between items-center p-5 border-b border-th-border bg-th-surface/50">
                     <h2 className="text-lg font-bold text-th-text flex items-center gap-2">
-                        <Globe className="text-cyan-500" size={20} />
+                        <Globe className="text-th-accent-t" size={20} />
                         Add New Download
                     </h2>
                     <button onClick={handleClose} className="p-1 hover:bg-th-raised rounded-full text-th-text-s hover:text-th-text transition-colors">
@@ -202,7 +206,7 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
                                     type="text"
                                     autoFocus
                                     placeholder="https://example.com/file.zip"
-                                    className="w-full bg-th-base border border-th-border rounded-xl py-3 pl-10 pr-4 text-th-text focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all font-mono text-sm shadow-inner"
+                                    className="w-full bg-th-base border border-th-border rounded-xl py-3 pl-10 pr-4 text-th-text focus:outline-none focus:border-th-accent focus:ring-1 focus:ring-th-accent transition-all font-mono text-sm shadow-inner"
                                     value={url}
                                     onChange={(e) => setUrl(e.target.value)}
                                     disabled={step === 'probing'}
@@ -228,7 +232,7 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
                             <button
                                 type="submit"
                                 disabled={!url || step === 'probing'}
-                                className="px-6 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl font-bold shadow-lg shadow-cyan-900/20 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                className="px-6 py-2.5 bg-th-accent hover:bg-th-accent-h text-white rounded-xl font-bold shadow-lg shadow-th-accent/20 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                             >
                                 {step === 'probing' ? <><Loader2 size={16} className="animate-spin" /> Checking...</> : "Next"}
                             </button>
@@ -239,7 +243,7 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
                         {/* Summary */}
                         <div className="flex items-start gap-4 p-4 bg-th-raised/50 rounded-xl border border-th-border-s">
                             <div className="p-3 bg-th-overlay/50 rounded-lg">
-                                <FileCheck className="text-cyan-400" size={24} />
+                                <FileCheck className="text-th-accent-t" size={24} />
                             </div>
                             <div>
                                 <h3 className="text-th-text font-medium truncate max-w-[300px]" title={probeData?.filename}>{probeData?.filename}</h3>
@@ -279,12 +283,10 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
                         {/* Schedule Option */}
                         <div className="bg-th-raised/50 p-3 rounded-xl border border-th-border-s space-y-2">
                             <div className="flex items-center gap-2">
-                                <input
-                                    type="checkbox"
+                                <Checkbox
                                     id="schedule"
-                                    className="w-4 h-4 rounded border-th-border bg-th-raised text-cyan-500 focus:ring-cyan-500"
                                     checked={enableSchedule}
-                                    onChange={e => setEnableSchedule(e.target.checked)}
+                                    onChange={setEnableSchedule}
                                 />
                                 <label htmlFor="schedule" className="text-sm font-medium text-th-text-s select-none cursor-pointer flex items-center gap-2">
                                     <Calendar size={14} className="text-th-text-s" />
@@ -296,7 +298,7 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
                                 <div className="pl-6">
                                     <input
                                         type="datetime-local"
-                                        className="w-full bg-th-surface border border-th-border-s rounded-lg p-2 text-sm text-th-text focus:outline-none focus:border-cyan-500"
+                                        className="w-full bg-th-surface border border-th-border-s rounded-lg p-2 text-sm text-th-text focus:outline-none focus:border-th-accent"
                                         value={scheduleTime}
                                         onChange={e => setScheduleTime(e.target.value)}
                                     />
@@ -315,24 +317,22 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
                             </div>
 
                             {!showPathInput ? (
-                                <select
-                                    className="w-full bg-th-surface border border-th-border-s rounded-lg p-2 text-sm text-th-text focus:outline-none focus:border-cyan-500"
+                                <Dropdown
                                     value={downloadPath}
                                     onChange={handlePathChange}
-                                >
-                                    <option value="">Default Downloads</option>
-                                    {savedLocations.map((loc: any) => (
-                                        <option key={loc.path} value={loc.path}>{loc.nickname || loc.path}</option>
-                                    ))}
-                                    <option value="custom">+ Custom Path...</option>
-                                </select>
+                                    options={[
+                                        { value: '', label: 'Default Downloads' },
+                                        ...savedLocations.map((loc: any) => ({ value: loc.path, label: loc.nickname || loc.path })),
+                                        { value: 'custom', label: '+ Custom Path...' },
+                                    ]}
+                                />
                             ) : (
                                 <div className="flex gap-2">
                                     <input
                                         type="text"
                                         autoFocus
                                         placeholder="C:\Downloads\MyFolder"
-                                        className="flex-1 bg-th-surface border border-th-border-s rounded-lg p-2 text-sm text-th-text focus:outline-none focus:border-cyan-500 font-mono"
+                                        className="flex-1 bg-th-surface border border-th-border-s rounded-lg p-2 text-sm text-th-text focus:outline-none focus:border-th-accent font-mono"
                                         value={downloadPath}
                                         onChange={e => setDownloadPath(e.target.value)}
                                     />
@@ -367,7 +367,7 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
                                     <button
                                         onClick={handleSaveAsCopy}
                                         disabled={isSubmitting}
-                                        className="py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold transition-colors shadow-lg shadow-cyan-900/20 flex justify-center items-center gap-2"
+                                        className="py-3 bg-th-accent hover:bg-th-accent-h text-white rounded-xl font-bold transition-colors shadow-lg shadow-th-accent/20 flex justify-center items-center gap-2"
                                     >
                                         {isSubmitting ? <Loader2 className="animate-spin" /> : <><Copy size={18} /> Save as Copy</>}
                                     </button>

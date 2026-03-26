@@ -1,4 +1,4 @@
-// Tachyon Background Script
+// TDM Background Script
 
 const DEFAULT_SERVER_URL = "http://localhost:45000";
 const DEFAULT_TOKEN = "tachyon-dev-token";
@@ -7,7 +7,7 @@ const DEFAULT_TOKEN = "tachyon-dev-token";
 chrome.runtime.onInstalled.addListener(() => {
     chrome.contextMenus.create({
         id: "download-with-tachyon",
-        title: "Download with Tachyon",
+        title: "Download with TDM",
         contexts: ["link", "selection", "page", "video", "audio"]
     });
 });

@@ -1,135 +1,177 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSettingsStore } from '../../store';
-import { Sparkles, AlertTriangle, Trash2, Sun, Moon, Monitor } from 'lucide-react';
-// @ts-ignore
-import { FactoryReset, GetEnableAI } from '../../../wailsjs/go/app/App';
+import { Sun, Moon, Monitor, FolderOpen, Eclipse } from 'lucide-react';
+
+const Toggle: React.FC<{ enabled: boolean; onChange: (v: boolean) => void }> = ({ enabled, onChange }) => (
+    <button
+        onClick={() => onChange(!enabled)}
+        className={`w-10 h-5 rounded-full relative transition-colors ${enabled ? 'bg-th-accent' : 'bg-th-overlay'}`}
+    >
+        <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${enabled ? 'right-1' : 'left-1'}`} />
+    </button>
+);
 
 export const GeneralSettings: React.FC = () => {
     const settings = useSettingsStore();
-    const [enableAI, setEnableAI] = useState(false);
-    const [showResetConfirm, setShowResetConfirm] = useState(false);
+    const [defaultPath, setDefaultPath] = useState('');
 
     useEffect(() => {
-        // Load initial state
-        if (GetEnableAI) {
-            GetEnableAI().then(setEnableAI);
-        }
+        // @ts-ignore
+        window.go?.app?.App?.GetDefaultDownloadPath?.().then((p: string) => {
+            if (p) setDefaultPath(p);
+        });
     }, []);
-
-    const handleFactoryReset = async () => {
-        try {
-            if (FactoryReset) {
-                await FactoryReset();
-                // Reload the window to reset state
-                window.location.reload();
-            }
-        } catch (error) {
-            console.error("Factory Reset Failed:", error);
-            alert("Factory reset failed. Check logs.");
-        }
-    };
 
     return (
         <div className="space-y-8">
-            {/* Standard Settings */}
-            <div>
-                <label className="block text-sm font-medium text-th-text-s mb-2">Max Concurrent Downloads: {settings.maxConcurrentDownloads}</label>
-                <input
-                    type="range" min="1" max="10"
-                    value={settings.maxConcurrentDownloads}
-                    onChange={(e) => settings.setMaxConcurrentDownloads(parseInt(e.target.value))}
-                    className="w-full h-2 bg-th-overlay rounded-lg appearance-none cursor-pointer accent-blue-500"
-                />
-            </div>
+            {/* Appearance */}
+            <section>
+                <h3 className="text-sm font-semibold text-th-text-s uppercase tracking-wider mb-4">Appearance</h3>
+                <div className="space-y-5">
+                    <div>
+                        <label className="block text-sm font-medium text-th-text mb-2">Theme</label>
+                        <div className="flex gap-2">
+                            {([
+                                { value: 'dark' as const, label: 'Dark', Icon: Moon },
+                                { value: 'black' as const, label: 'Black', Icon: Eclipse },
+                                { value: 'light' as const, label: 'Light', Icon: Sun },
+                                { value: 'system' as const, label: 'System', Icon: Monitor },
+                            ]).map(({ value, label, Icon }) => (
+                                <button
+                                    key={value}
+                                    onClick={() => settings.setTheme(value)}
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                                        settings.theme === value
+                                            ? 'bg-th-accent/20 border-th-accent text-th-accent-t'
+                                            : 'bg-th-raised border-th-border text-th-text-s hover:text-th-text'
+                                    }`}
+                                >
+                                    <Icon size={16} />
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
 
-            <div>
-                <label className="block text-sm font-medium text-th-text-s mb-2">Threads per Download: {settings.threadsPerDownload}</label>
-                <input
-                    type="range" min="1" max="32"
-                    value={settings.threadsPerDownload}
-                    onChange={(e) => settings.setThreadsPerDownload(parseInt(e.target.value))}
-                    className="w-full h-2 bg-th-overlay rounded-lg appearance-none cursor-pointer accent-purple-500"
-                />
-            </div>
+                    <div>
+                        <label className="block text-sm font-medium text-th-text mb-2">Time Display</label>
+                        <div className="flex gap-2">
+                            {([
+                                { value: 'relative' as const, label: 'Relative', tooltip: 'e.g. "2 minutes ago"' },
+                                { value: 'absolute' as const, label: 'Absolute', tooltip: 'e.g. "14:32:05"' },
+                            ]).map(({ value, label, tooltip }) => (
+                                <button
+                                    key={value}
+                                    title={tooltip}
+                                    onClick={() => settings.setTimeFormat(value)}
+                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                                        settings.timeFormat === value
+                                            ? 'bg-th-accent/20 border-th-accent text-th-accent-t'
+                                            : 'bg-th-raised border-th-border text-th-text-s hover:text-th-text'
+                                    }`}
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
 
-            <div className="flex items-center justify-between opacity-50 pointer-events-none">
-                <span className="text-th-text-s">File Categorization (Always On)</span>
-                <div className="w-10 h-5 bg-blue-600 rounded-full relative">
-                    <div className="absolute right-1 top-1 w-3 h-3 bg-white rounded-full"></div>
+                    <div>
+                        <label className="block text-sm font-medium text-th-text mb-2">Size Unit</label>
+                        <div className="flex gap-2">
+                            {(['auto', 'KB', 'MB', 'GB'] as const).map((unit) => (
+                                <button
+                                    key={unit}
+                                    onClick={() => settings.setSizeUnit(unit)}
+                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                                        settings.sizeUnit === unit
+                                            ? 'bg-th-accent/20 border-th-accent text-th-accent-t'
+                                            : 'bg-th-raised border-th-border text-th-text-s hover:text-th-text'
+                                    }`}
+                                >
+                                    {unit === 'auto' ? 'Auto' : unit}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                 </div>
-            </div>
-
-            {/* Theme Selector */}
-            <div>
-                <label className="block text-sm font-medium text-th-text-s mb-2">Theme</label>
-                <div className="flex gap-2">
-                    {([
-                        { value: 'dark' as const, label: 'Dark', Icon: Moon },
-                        { value: 'light' as const, label: 'Light', Icon: Sun },
-                        { value: 'system' as const, label: 'System', Icon: Monitor },
-                    ]).map(({ value, label, Icon }) => (
-                        <button
-                            key={value}
-                            onClick={() => settings.setTheme(value)}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
-                                settings.theme === value
-                                    ? 'bg-blue-600/20 border-blue-500 text-blue-400'
-                                    : 'bg-th-raised border-th-border text-th-text-s hover:text-th-text'
-                            }`}
-                        >
-                            <Icon size={16} />
-                            {label}
-                        </button>
-                    ))}
-                </div>
-            </div>
+            </section>
 
             <hr className="border-th-border" />
 
-            {/* Danger Zone */}
-            <div className="space-y-4">
-                <h3 className="text-red-500 font-medium flex items-center gap-2">
-                    <AlertTriangle size={18} />
-                    Danger Zone
-                </h3>
+            {/* Behavior */}
+            <section>
+                <h3 className="text-sm font-semibold text-th-text-s uppercase tracking-wider mb-4">Behavior</h3>
+                <div className="space-y-5">
+                    <div>
+                        <label className="block text-sm font-medium text-th-text mb-2">
+                            <FolderOpen size={14} className="inline mr-1.5 -mt-0.5" />
+                            Default Download Path
+                        </label>
+                        <input
+                            type="text"
+                            placeholder={defaultPath}
+                            value={settings.downloadPath}
+                            onChange={(e) => settings.setDownloadPath(e.target.value)}
+                            className="w-full bg-th-surface border border-th-border rounded-lg px-3 py-2 text-sm text-th-text placeholder-th-text-m font-mono focus:border-th-accent focus:outline-none"
+                        />
+                    </div>
 
-                <div className="bg-th-surface/50 border border-red-500/20 rounded-lg p-4">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h4 className="text-th-text font-medium">Factory Reset</h4>
-                            <p className="text-sm text-th-text-m mt-1">
-                                Wipes all download history, settings, and local data. This action cannot be undone.
-                            </p>
+                            <span className="text-sm font-medium text-th-text">Start on Boot</span>
+                            <p className="text-xs text-th-text-m mt-0.5">Launch TDM when your system starts</p>
                         </div>
+                        <Toggle enabled={settings.startOnBoot} onChange={settings.setStartOnBoot} />
+                    </div>
 
-                        {!showResetConfirm ? (
-                            <button
-                                onClick={() => setShowResetConfirm(true)}
-                                className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/50 rounded-lg transition-colors flex items-center gap-2 font-medium text-sm"
-                            >
-                                <Trash2 size={16} />
-                                Reset Everything
-                            </button>
-                        ) : (
-                            <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-300">
-                                <span className="text-sm text-red-400 font-medium mr-2">Are you sure?</span>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <span className="text-sm font-medium text-th-text">Close to System Tray</span>
+                            <p className="text-xs text-th-text-m mt-0.5">Minimize to tray instead of quitting</p>
+                        </div>
+                        <Toggle enabled={settings.closeToTray} onChange={settings.setCloseToTray} />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <span className="text-sm font-medium text-th-text">File Categorization</span>
+                            <p className="text-xs text-th-text-m mt-0.5">Auto-sort files into folders by type</p>
+                        </div>
+                        <Toggle enabled={settings.fileCategorization} onChange={settings.setFileCategorization} />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <span className="text-sm font-medium text-th-text">Quick Download</span>
+                            <p className="text-xs text-th-text-m mt-0.5">Ctrl+V or drag-and-drop starts download instantly</p>
+                        </div>
+                        <Toggle enabled={settings.quickDownload} onChange={settings.setQuickDownload} />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-th-text mb-2">Double-Click Completed Download</label>
+                        <div className="flex gap-2">
+                            {([
+                                { value: 'open-file' as const, label: 'Open File' },
+                                { value: 'open-folder' as const, label: 'Show in Folder' },
+                            ]).map(({ value, label }) => (
                                 <button
-                                    onClick={handleFactoryReset}
-                                    className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-sm font-bold shadow-lg shadow-red-900/20"
+                                    key={value}
+                                    onClick={() => settings.setCompletedClickAction(value)}
+                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                                        settings.completedClickAction === value
+                                            ? 'bg-th-accent/20 border-th-accent text-th-accent-t'
+                                            : 'bg-th-raised border-th-border text-th-text-s hover:text-th-text'
+                                    }`}
                                 >
-                                    Yes, Wipe It
+                                    {label}
                                 </button>
-                                <button
-                                    onClick={() => setShowResetConfirm(false)}
-                                    className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-colors text-sm"
-                                >
-                                    Cancel
-                                </button>
-                            </div>
-                        )}
+                            ))}
+                        </div>
                     </div>
                 </div>
-            </div>
+            </section>
         </div>
     );
 };

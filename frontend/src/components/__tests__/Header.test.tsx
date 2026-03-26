@@ -2,44 +2,41 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Header } from '../Header';
 
-// Mock the store
-vi.mock('../../store', () => ({
-    useSettingsStore: vi.fn((selector) => {
-        const state = { theme: 'dark' as const, setTheme: vi.fn() };
-        return selector(state);
-    }),
-}));
-
 describe('Header', () => {
     const defaultProps = {
+        activeTab: 'all',
         onAddDownload: vi.fn(),
         onPauseAll: vi.fn(),
         onResumeAll: vi.fn(),
-        globalSpeed: 5.5,
         sidebarCollapsed: false,
     };
 
     beforeEach(() => {
         vi.clearAllMocks();
-        // Mock window.go for GetNetworkHealth
-        (window as any).go = {
-            app: {
-                App: {
-                    GetNetworkHealth: vi.fn().mockResolvedValue({ level: 'normal' }),
-                },
-            },
-        };
     });
 
-    it('renders Dashboard title', () => {
+    it('renders page title for dashboard', () => {
         render(<Header {...defaultProps} />);
         expect(screen.getByText('Dashboard')).toBeInTheDocument();
-        expect(screen.getByText('Overview')).toBeInTheDocument();
     });
 
-    it('renders Add Download button', () => {
+    it('renders page title for other tabs', () => {
+        render(<Header {...defaultProps} activeTab="analytics" />);
+        expect(screen.getByText('Analytics')).toBeInTheDocument();
+    });
+
+    it('renders action buttons on dashboard', () => {
         render(<Header {...defaultProps} />);
         expect(screen.getByText('Add Download')).toBeInTheDocument();
+        expect(screen.getByTitle('Pause All')).toBeInTheDocument();
+        expect(screen.getByTitle('Resume All')).toBeInTheDocument();
+    });
+
+    it('hides action buttons on non-dashboard tabs', () => {
+        render(<Header {...defaultProps} activeTab="analytics" />);
+        expect(screen.queryByText('Add Download')).not.toBeInTheDocument();
+        expect(screen.queryByTitle('Pause All')).not.toBeInTheDocument();
+        expect(screen.queryByTitle('Resume All')).not.toBeInTheDocument();
     });
 
     it('calls onAddDownload when button clicked', () => {
@@ -61,12 +58,6 @@ describe('Header', () => {
         render(<Header {...defaultProps} onResumeAll={onResume} />);
         fireEvent.click(screen.getByTitle('Resume All'));
         expect(onResume).toHaveBeenCalled();
-    });
-
-    it('shows theme toggle button', () => {
-        render(<Header {...defaultProps} />);
-        const themeBtn = screen.getByTitle(/Theme:/);
-        expect(themeBtn).toBeInTheDocument();
     });
 
     it('adjusts left offset based on sidebar collapse state', () => {

@@ -6,7 +6,6 @@ describe('Sidebar', () => {
     const defaultProps = {
         activeTab: 'all',
         setActiveTab: vi.fn(),
-        diskUsage: { free_gb: 100, percent: 45 },
         collapsed: false,
         onToggleCollapse: vi.fn(),
     };
@@ -14,7 +13,6 @@ describe('Sidebar', () => {
     it('renders all menu items when expanded', () => {
         render(<Sidebar {...defaultProps} />);
         expect(screen.getByText('Dashboard')).toBeInTheDocument();
-        expect(screen.getByText('Active')).toBeInTheDocument();
         expect(screen.getByText('Analytics')).toBeInTheDocument();
         expect(screen.getByText('Scheduler')).toBeInTheDocument();
         expect(screen.getByText('Speed Test')).toBeInTheDocument();
@@ -23,12 +21,12 @@ describe('Sidebar', () => {
 
     it('renders brand name when expanded', () => {
         render(<Sidebar {...defaultProps} />);
-        expect(screen.getByText('Tachyon')).toBeInTheDocument();
+        expect(screen.getByText('TDM')).toBeInTheDocument();
     });
 
     it('hides brand name when collapsed', () => {
         render(<Sidebar {...defaultProps} collapsed={true} />);
-        expect(screen.queryByText('Tachyon')).not.toBeInTheDocument();
+        expect(screen.queryByText('TDM')).not.toBeInTheDocument();
     });
 
     it('hides menu labels when collapsed', () => {
@@ -52,17 +50,6 @@ describe('Sidebar', () => {
         const collapseBtn = buttons[buttons.length - 1];
         fireEvent.click(collapseBtn);
         expect(onToggle).toHaveBeenCalled();
-    });
-
-    it('shows disk usage when expanded', () => {
-        render(<Sidebar {...defaultProps} />);
-        expect(screen.getByText('Disk Usage')).toBeInTheDocument();
-        expect(screen.getByText('100GB Free')).toBeInTheDocument();
-    });
-
-    it('hides disk usage when collapsed', () => {
-        render(<Sidebar {...defaultProps} collapsed={true} />);
-        expect(screen.queryByText('Disk Usage')).not.toBeInTheDocument();
     });
 
     it('applies w-64 class when expanded and w-16 when collapsed', () => {

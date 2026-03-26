@@ -24,7 +24,7 @@ describe("DownloadItem", () => {
 
     it("renders progress bar with correct width", () => {
         const { container } = render(<DownloadItem item={mockItem} />);
-        const progressBar = container.querySelector(".bg-blue-500");
+        const progressBar = container.querySelector(\".bg-th-accent\");
 
         expect(progressBar).toHaveStyle({ width: "45.5%" });
     });

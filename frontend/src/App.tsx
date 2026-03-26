@@ -7,6 +7,7 @@ import { AddURLModal } from './components/AddURLModal';
 import { SettingsModal } from './components/SettingsModal';
 import { AnalyticsTab } from './components/AnalyticsTab';
 import { SpeedTestTab } from './components/SpeedTestTab';
+import { StatusBar } from './components/StatusBar';
 import { useTachyon } from './hooks/useTachyon';
 import { useTheme } from './hooks/useTheme';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
@@ -15,14 +16,19 @@ import { EventsOn } from '../wailsjs/runtime/runtime';
 import * as AppBinding from '../wailsjs/go/app/App';
 import { useSettingsStore } from './store';
 import { cn } from './utils';
+import { StatusFilter, CategoryFilter, getCategoryExts, allKnownExts } from './components/DashboardSidebar';
+import { Dropdown } from './components/common/Dropdown';
 
 function App() {
     const [activeTab, setActiveTab] = useState("all");
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [pasteUrl, setPasteUrl] = useState<string | undefined>(undefined);
     const [toasts, setToasts] = useState<ToastMessage[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
-    const [statusFilter, setStatusFilter] = useState<string>('all');
+    const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+    const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
     // Activate theme system
     useTheme();
@@ -53,7 +59,7 @@ function App() {
 
     // openFolder and openFile trigger backend ops by ID
     // We pass addToast to useTachyon if we want it to manage some errors, or just pass it down to components
-    const { downloads, addDownload, openFolder, openFile, dailyData, diskUsage, totalSpeed, reorderDownload, setPriority } = useTachyon();
+    const { downloads, addDownload, openFolder, openFile, dailyData, totalSpeed, reorderDownload, setPriority } = useTachyon();
 
     // Keyboard shortcuts
     useKeyboardShortcuts({
@@ -70,15 +76,78 @@ function App() {
         },
     });
 
-    // Filter downloads based on active tab, search, and status filter
-    const filteredDownloads = Object.values(downloads)
+    const isValidUrl = useCallback((text: string) => /^https?:\/\/.+/i.test(text.trim()), []);
+
+    const quickDownload = useSettingsStore(s => s.quickDownload);
+    const downloadPath = useSettingsStore(s => s.downloadPath);
+
+    // Global Ctrl+V paste handler
+    useEffect(() => {
+        const handlePaste = (e: ClipboardEvent) => {
+            // Don't intercept if user is typing in an input/textarea
+            const tag = (e.target as HTMLElement)?.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+            const text = e.clipboardData?.getData('text')?.trim();
+            if (text && isValidUrl(text) && !isModalOpen) {
+                if (quickDownload) {
+                    addDownload(text, undefined, undefined, downloadPath || undefined);
+                } else {
+                    setPasteUrl(text);
+                    setIsModalOpen(true);
+                }
+            }
+        };
+        window.addEventListener('paste', handlePaste);
+        return () => window.removeEventListener('paste', handlePaste);
+    }, [isModalOpen, isValidUrl, quickDownload, downloadPath, addDownload]);
+
+    // Global drag-and-drop handler
+    useEffect(() => {
+        const handleDragOver = (e: DragEvent) => {
+            e.preventDefault();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+        };
+        const handleDrop = (e: DragEvent) => {
+            e.preventDefault();
+            const text = e.dataTransfer?.getData('text/uri-list') || e.dataTransfer?.getData('text/plain') || '';
+            const trimmed = text.trim();
+            if (trimmed && isValidUrl(trimmed) && !isModalOpen) {
+                if (quickDownload) {
+                    addDownload(trimmed, undefined, undefined, downloadPath || undefined);
+                } else {
+                    setPasteUrl(trimmed);
+                    setIsModalOpen(true);
+                }
+            }
+        };
+        window.addEventListener('dragover', handleDragOver);
+        window.addEventListener('drop', handleDrop);
+        return () => {
+            window.removeEventListener('dragover', handleDragOver);
+            window.removeEventListener('drop', handleDrop);
+        };
+    }, [isModalOpen, isValidUrl, quickDownload, downloadPath, addDownload]);
+
+    // Filter downloads based on active tab, search, status and category
+    const allDownloads = Object.values(downloads);
+    const filteredDownloads = allDownloads
         .filter(item => {
             // Tab filter
             if (activeTab !== "all" && activeTab !== "settings" && activeTab !== "analytics") {
                 if (item.status !== activeTab) return false;
             }
-            // Status dropdown filter
+            // Status sidebar filter
             if (statusFilter !== 'all' && item.status !== statusFilter) return false;
+            // Category filter
+            if (categoryFilter !== 'all') {
+                const ext = item.filename?.split('.').pop()?.toLowerCase() || '';
+                if (categoryFilter === 'other') {
+                    if (allKnownExts.includes(ext)) return false;
+                } else {
+                    const exts = getCategoryExts(categoryFilter);
+                    if (!exts.includes(ext)) return false;
+                }
+            }
             // Text search
             if (searchQuery) {
                 const q = searchQuery.toLowerCase();
@@ -116,62 +185,78 @@ function App() {
             <Sidebar activeTab={activeTab} setActiveTab={(tab) => {
                 if (tab === 'settings') setIsSettingsOpen(true);
                 else setActiveTab(tab);
-            }} diskUsage={diskUsage} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} />
+            }} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} />
 
             {/* Main Layout (Left Margin for Sidebar) */}
             <div className={cn("flex-1 flex flex-col min-w-0 h-full transition-all duration-300", sidebarCollapsed ? "ml-16" : "ml-64")}>
 
                 {/* Fixed Header */}
                 <Header
+                    activeTab={activeTab}
                     onAddDownload={() => setIsModalOpen(true)}
                     onPauseAll={() => AppBinding.PauseAllDownloads().catch(console.error)}
                     onResumeAll={() => AppBinding.ResumeAllDownloads().catch(console.error)}
-                    globalSpeed={totalSpeed}
                     sidebarCollapsed={sidebarCollapsed}
                 />
 
                 {/* Scrollable Content Area */}
-                <main className="flex-1 overflow-y-auto pt-16 bg-th-base scrollbar-thin scrollbar-thumb-th-raised scrollbar-track-transparent">
-                    <div className="max-w-[1600px] mx-auto p-4 sm:p-6 md:p-8">
+                <main className="flex-1 min-h-0 pt-16 pb-7 bg-th-base flex flex-col">
 
                         {/* Dynamic Content */}
                         {activeTab === 'analytics' ? (
-                            <AnalyticsTab />
+                            <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-th-raised scrollbar-track-transparent">
+                                <div className="max-w-[1600px] mx-auto p-4 sm:p-6 md:p-8">
+                                    <AnalyticsTab />
+                                </div>
+                            </div>
                         ) : activeTab === 'speedtest' ? (
-                            <SpeedTestTab />
+                            <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-th-raised scrollbar-track-transparent">
+                                <div className="max-w-[1600px] mx-auto p-4 sm:p-6 md:p-8">
+                                    <SpeedTestTab />
+                                </div>
+                            </div>
                         ) : (
-                            <div className="space-y-6">
-                                {/* Dashboard Widgets (Only on Dashboard) */}
-                                {activeTab === 'all' && <DashboardWidgets downloads={Object.values(downloads)} dailyData={dailyData} totalSpeed={totalSpeed} />}
-
-                                {/* Search & Filter Bar */}
-                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                                    <div className="flex-1 relative">
+                            <div className="flex-1 min-h-0 flex flex-col px-5 pt-4 pb-3">
+                                {/* Filter Bar: Search + Dropdowns */}
+                                <div className="flex items-center gap-2 mb-2.5 shrink-0">
+                                    <div className="relative flex-1">
                                         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-th-text-m" />
                                         <input
                                             type="text"
                                             placeholder="Search by filename or URL..."
                                             value={searchQuery}
                                             onChange={e => setSearchQuery(e.target.value)}
-                                            className="w-full bg-th-surface border border-th-border rounded-lg pl-10 pr-4 py-2 text-sm text-th-text placeholder-th-text-m focus:border-cyan-500 focus:outline-none"
+                                            className="w-full bg-th-surface border border-th-border rounded-lg pl-10 pr-4 py-1.5 text-sm text-th-text placeholder-th-text-m focus:border-th-accent focus:outline-none"
                                         />
                                     </div>
-                                    <select
+                                    <Dropdown
                                         value={statusFilter}
-                                        onChange={e => setStatusFilter(e.target.value)}
-                                        className="bg-th-surface border border-th-border rounded-lg px-3 py-2 text-sm text-th-text focus:border-cyan-500 focus:outline-none"
-                                    >
-                                        <option value="all">All Status</option>
-                                        <option value="downloading">Downloading</option>
-                                        <option value="completed">Completed</option>
-                                        <option value="paused">Paused</option>
-                                        <option value="pending">Pending</option>
-                                        <option value="error">Error</option>
-                                    </select>
+                                        onChange={v => setStatusFilter(v as StatusFilter)}
+                                        options={[
+                                            { value: 'all', label: 'All Status' },
+                                            { value: 'downloading', label: 'Active' },
+                                            { value: 'completed', label: 'Completed' },
+                                            { value: 'paused', label: 'Paused' },
+                                            { value: 'pending', label: 'Queued' },
+                                            { value: 'error', label: 'Failed' },
+                                        ]}
+                                    />
+                                    <Dropdown
+                                        value={categoryFilter}
+                                        onChange={v => setCategoryFilter(v as CategoryFilter)}
+                                        options={[
+                                            { value: 'all', label: 'All Types' },
+                                            { value: 'video', label: 'Video' },
+                                            { value: 'compressed', label: 'Archives' },
+                                            { value: 'document', label: 'Documents' },
+                                            { value: 'program', label: 'Programs' },
+                                            { value: 'other', label: 'Other' },
+                                        ]}
+                                    />
                                 </div>
 
-                                {/* Data Grid */}
-                                <div className="bg-th-surface border border-th-border rounded-xl overflow-hidden shadow-2xl shadow-black/10">
+                                {/* Data Grid - fills remaining height */}
+                                <div className="flex-1 min-h-0 bg-th-surface border border-th-border rounded-xl overflow-hidden shadow-lg shadow-black/5 flex flex-col">
                                     <DownloadsTable
                                         data={filteredDownloads}
                                         onOpenFile={openFile}
@@ -179,18 +264,28 @@ function App() {
                                         onReorder={reorderDownload}
                                         onSetPriority={setPriority}
                                         addToast={addToast}
+                                        selectedIds={selectedIds}
+                                        onSelectionChange={setSelectedIds}
                                     />
                                 </div>
                             </div>
                         )}
-                    </div>
                 </main>
+
+                <StatusBar
+                    activeDownloads={Object.values(downloads).filter((d: any) => d.status === 'downloading').length}
+                    pendingDownloads={Object.values(downloads).filter((d: any) => d.status === 'pending').length}
+                    dailyData={dailyData}
+                    globalSpeed={totalSpeed}
+                    sidebarCollapsed={sidebarCollapsed}
+                />
             </div>
 
             <AddURLModal
                 isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
+                onClose={() => { setIsModalOpen(false); setPasteUrl(undefined); }}
                 onAdd={addDownload}
+                initialUrl={pasteUrl}
             />
 
             <SettingsModal
@@ -199,37 +294,6 @@ function App() {
             />
         </div>
     );
-}
-
-// Temporary Widget Component
-const DashboardWidgets = ({ downloads, dailyData, totalSpeed }: { downloads: any[], dailyData: string, totalSpeed: number }) => {
-    const active = downloads.filter(d => d.status === 'downloading').length;
-    const pending = downloads.filter(d => d.status === 'pending').length;
-
-    return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <Widget title="Active Downloads" value={active.toString()} subtitle={`${totalSpeed.toFixed(1)} MB/s Total`} color="cyan" />
-            <Widget title="Queue Pending" value={pending.toString()} subtitle="Next: --" color="indigo" />
-            <Widget title="Data Today" value={dailyData} subtitle="Daily Usage" color="purple" />
-        </div>
-    );
-}
-
-const Widget = ({ title, value, subtitle, color }: any) => {
-    const colors: any = {
-        cyan: "border-l-cyan-500 from-cyan-500/10",
-        indigo: "border-l-indigo-500 from-indigo-500/10",
-        purple: "border-l-purple-500 from-purple-500/10",
-    }
-    return (
-        <div className={`bg-gradient-to-r ${colors[color]} to-transparent bg-th-surface border-l-4 border-y border-r border-th-border p-6 rounded-lg shadow-lg`}>
-            <h3 className="text-th-text-s text-sm font-medium uppercase tracking-wider mb-1">{title}</h3>
-            <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-bold text-th-text">{value}</span>
-                <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-th-raised text-th-text-s">{subtitle}</span>
-            </div>
-        </div>
-    )
 }
 
 export default App;

@@ -9,20 +9,21 @@ export function useTheme() {
     useEffect(() => {
         const root = document.documentElement;
 
-        const applyDark = (dark: boolean) => {
-            if (dark) root.classList.add('dark');
-            else root.classList.remove('dark');
+        const applyTheme = (mode: 'light' | 'dark' | 'black') => {
+            root.classList.remove('dark', 'black');
+            if (mode === 'dark') root.classList.add('dark');
+            else if (mode === 'black') root.classList.add('black');
         };
 
         if (theme === 'system') {
             const mq = window.matchMedia('(prefers-color-scheme: dark)');
-            applyDark(mq.matches);
-            const handler = (e: MediaQueryListEvent) => applyDark(e.matches);
+            applyTheme(mq.matches ? 'dark' : 'light');
+            const handler = (e: MediaQueryListEvent) => applyTheme(e.matches ? 'dark' : 'light');
             mq.addEventListener('change', handler);
             return () => mq.removeEventListener('change', handler);
         }
 
-        applyDark(theme === 'dark');
+        applyTheme(theme);
     }, [theme]);
 
     return { theme, setTheme } as const;

@@ -17,8 +17,6 @@ import (
 
 	"github.com/getlantern/systray"
 	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/menu"
-	"github.com/wailsapp/wails/v2/pkg/menu/keys"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 )
@@ -117,10 +115,10 @@ func main() {
 				icon = appIconIco
 			}
 			systray.SetIcon(icon)
-			systray.SetTitle("Tachyon")
-			systray.SetTooltip("Project Tachyon")
+			systray.SetTitle("TDM")
+			systray.SetTooltip("Tachyon Download Manager")
 
-			mOpen := systray.AddMenuItem("Open Tachyon", "Restore the window")
+			mOpen := systray.AddMenuItem("Open TDM", "Restore the window")
 			systray.AddSeparator()
 			mQuit := systray.AddMenuItem("Quit", "Quit the application")
 
@@ -139,20 +137,9 @@ func main() {
 		})
 	}()
 
-	// Create System Tray Menu (Wails App Menu)
-	appMenu := menu.NewMenu()
-	fileMenu := appMenu.AddSubmenu("File")
-	fileMenu.AddText("Open Tachyon", keys.CmdOrCtrl("o"), func(_ *menu.CallbackData) {
-		application.ShowApp()
-	})
-	fileMenu.AddSeparator()
-	fileMenu.AddText("Quit", keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) {
-		application.QuitApp()
-	})
-
 	// Create application with Wails options
 	appOpts := &options.App{
-		Title:  "project-tachyon",
+		Title:  "Tachyon Download Manager",
 		Width:  1024,
 		Height: 768,
 		AssetServer: &assetserver.Options{
@@ -162,7 +149,6 @@ func main() {
 		OnStartup:        application.Startup,
 		OnBeforeClose:    application.BeforeClose,
 		StartHidden:      startHidden,
-		Menu:             appMenu,
 		Bind: []interface{}{
 			application,
 		},

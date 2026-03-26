@@ -370,3 +370,8 @@ func (s *Storage) GetSpeedTestHistory(limit int) ([]SpeedTestHistory, error) {
 	err := s.DB.Order("timestamp desc").Limit(limit).Find(&history).Error
 	return history, err
 }
+
+// ClearSpeedTestHistory deletes all speed test records
+func (s *Storage) ClearSpeedTestHistory() error {
+	return s.DB.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&SpeedTestHistory{}).Error
+}

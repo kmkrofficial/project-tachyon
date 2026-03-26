@@ -89,6 +89,16 @@ func (a *App) AddDownloadWithParams(url, path, filename string, options map[stri
 	return id
 }
 
+// GetDefaultDownloadPath returns the system default download directory
+func (a *App) GetDefaultDownloadPath() string {
+	path, err := filesystem.GetDefaultDownloadPath()
+	if err != nil {
+		a.logger.Error("Failed to get default download path", "error", err)
+		return ""
+	}
+	return path
+}
+
 // GetDownloadLocations returns saved download paths
 func (a *App) GetDownloadLocations() []storage.DownloadLocation {
 	locs, err := a.engine.GetStorage().GetLocations()
@@ -228,4 +238,3 @@ func (a *App) CheckCollision(filename string) CollisionResult {
 	}
 	return CollisionResult{Exists: exists, Path: path}
 }
-

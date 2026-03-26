@@ -5,7 +5,7 @@ import { ProgressBar } from '../ProgressBar';
 describe('ProgressBar', () => {
     it('renders with correct width from progress', () => {
         const { container } = render(<ProgressBar progress={50} />);
-        const bar = container.querySelector('.bg-blue-500');
+        const bar = container.querySelector('.bg-th-accent');
         expect(bar).toHaveStyle({ width: '50%' });
     });
 
@@ -32,8 +32,8 @@ describe('ProgressBar', () => {
         expect(container.querySelector('.bg-yellow-500')).toBeInTheDocument();
     });
 
-    it('uses blue for downloading (default) status', () => {
+    it('uses accent color for downloading (default) status', () => {
         const { container } = render(<ProgressBar progress={45} />);
-        expect(container.querySelector('.bg-blue-500')).toBeInTheDocument();
+        expect(container.querySelector('.bg-th-accent')).toBeInTheDocument();
     });
 });

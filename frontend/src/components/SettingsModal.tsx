@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import { X, Save, Clock, Wifi, Sliders, Shield, Bot } from 'lucide-react';
+import { X, Save, Clock, Wifi, Sliders, Bot } from 'lucide-react';
 import { useSettingsStore } from '../store';
 import { useTachyon } from '../hooks/useTachyon';
 
 import { GeneralSettings } from '../pages/Settings/General';
-import { SecurityLog } from '../pages/Settings/SecurityLog';
 import { MCPDashboard } from '../pages/Settings/MCPDashboard';
 import { NetworkSettings } from '../pages/Settings/NetworkSettings';
 
@@ -15,7 +14,7 @@ interface SettingsModalProps {
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     const settings = useSettingsStore();
-    const [activeTab, setActiveTab] = useState<'general' | 'scheduler' | 'network' | 'security' | 'mcp'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'scheduler' | 'network' | 'mcp'>('general');
 
     if (!isOpen) return null;
 
@@ -30,7 +29,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-            <div className="bg-th-surface w-full max-w-2xl rounded-2xl border border-th-border shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+            <div className="bg-th-surface w-full max-w-2xl rounded-2xl border border-th-border shadow-2xl overflow-hidden flex flex-col h-[80vh]">
 
                 {/* Header */}
                 <div className="flex justify-between items-center p-6 border-b border-th-border bg-th-surface/50">
@@ -71,13 +70,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                             active={activeTab === 'mcp'}
                             onClick={() => setActiveTab('mcp')}
                         />
-                        <TabButton
-                            id="security"
-                            label="Security"
-                            icon={Shield}
-                            active={activeTab === 'security'}
-                            onClick={() => setActiveTab('security')}
-                        />
                     </div>
 
                     {/* Content */}
@@ -104,15 +96,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         )}
 
                         {activeTab === 'network' && <NetworkSettings />}
-
-                        {activeTab === 'security' && <SecurityLog />}
                     </div>
                 </div >
 
                 <div className="p-4 border-t border-th-border flex justify-end bg-th-surface/50">
                     <button
                         onClick={handleSave}
-                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+                        className="flex items-center gap-2 bg-th-accent hover:bg-th-accent-h text-white px-6 py-2 rounded-lg font-medium transition-colors"
                     >
                         <Save size={18} /> Save Changes
                     </button>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Download, Upload, Activity, Server, Clock, Wifi } from 'lucide-react';
+import { Download, Upload, Server, Clock, Wifi } from 'lucide-react';
 // @ts-ignore
-import { RunNetworkSpeedTest, GetSpeedTestHistory } from '../../wailsjs/go/app/App';
+import { RunNetworkSpeedTest, GetSpeedTestHistory, ClearSpeedTestHistory } from '../../wailsjs/go/app/App';
 // @ts-ignore
 import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime';
 
@@ -96,152 +96,158 @@ export const SpeedTestTab: React.FC = () => {
     const displayServer = livePhase?.server_name ?? result?.server_name ?? null;
     const displayISP = livePhase?.isp ?? result?.isp ?? null;
 
+    const phaseProgress = livePhase?.phase === 'connecting' ? 0
+        : livePhase?.phase === 'ping' ? 1
+        : livePhase?.phase === 'download' ? 2
+        : livePhase?.phase === 'upload' ? 3 : -1;
+
     return (
-        <div className="space-y-6 animate-fade-in">
-            {/* Header */}
-            <div>
-                <h1 className="text-3xl font-bold text-th-text mb-2">Network Speed Test</h1>
-                <p className="text-th-text-s">Measure your internet connection performance.</p>
-            </div>
-
-            {/* Main Test Area */}
-            <div className="bg-th-surface border border-th-border rounded-2xl p-8 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-32 bg-cyan-500/10 blur-[100px] rounded-full pointer-events-none" />
-
-                <div className="flex flex-col md:flex-row items-center gap-12 relative z-10">
-                    {/* Start Button / Status */}
-                    <div className="flex-shrink-0 text-center">
-                        <button
-                            onClick={runTest}
-                            disabled={isRunning}
-                            className={`w-48 h-48 rounded-full border-4 flex flex-col items-center justify-center transition-all ${isRunning
-                                ? 'border-cyan-500/50 bg-cyan-900/10 animate-pulse cursor-not-allowed'
-                                : 'border-cyan-500 hover:border-cyan-400 bg-cyan-500/10 hover:bg-cyan-500/20 hover:scale-105 shadow-[0_0_30px_rgba(6,182,212,0.3)]'
-                                }`}
-                        >
-                            {isRunning ? (
-                                <>
-                                    <Activity className="text-cyan-400 animate-bounce mb-2" size={48} />
-                                    <span className="text-cyan-200 font-mono text-sm tracking-wider uppercase">Testing...</span>
-                                </>
-                            ) : (
-                                <>
-                                    <Play className="text-cyan-400 ml-2 mb-2" size={48} />
-                                    <span className="text-white font-bold text-lg tracking-wider uppercase">Start</span>
-                                </>
-                            )}
-                        </button>
-                        {/* Phase Label */}
-                        {isRunning && livePhase && (
-                            <div className="mt-4 text-cyan-300 font-medium text-sm">
-                                {phaseLabels[livePhase.phase] || livePhase.phase}
-                            </div>
+        <div className="space-y-4 animate-fade-in">
+            {/* Test Card */}
+            <div className="bg-th-surface border border-th-border rounded-xl overflow-hidden">
+                {/* Top bar: Go button + status */}
+                <div className="flex items-center justify-between px-5 py-3 border-b border-th-border">
+                    <div className="flex items-center gap-3 text-sm text-th-text-s">
+                        {displayServer && (
+                            <span className="flex items-center gap-1.5">
+                                <Server size={13} className="text-th-text-m" /> {displayServer}
+                            </span>
+                        )}
+                        {displayISP && (
+                            <span className="flex items-center gap-1.5">
+                                <Wifi size={13} className="text-th-text-m" /> {displayISP}
+                            </span>
+                        )}
+                        {!displayServer && !displayISP && (
+                            <span className="text-th-text-m text-xs">Press Go to start a speed test</span>
                         )}
                     </div>
+                    <button
+                        onClick={runTest}
+                        disabled={isRunning}
+                        className={`px-5 py-1.5 rounded-lg font-bold text-sm uppercase tracking-wider transition-all ${isRunning
+                            ? 'bg-th-accent/20 text-th-accent-t/60 cursor-not-allowed'
+                            : 'bg-th-accent hover:bg-th-accent-h text-white shadow-lg shadow-th-accent/30 active:scale-95'
+                        }`}
+                    >
+                        {isRunning ? (phaseLabels[livePhase?.phase ?? ''] || 'Testing...') : 'Go'}
+                    </button>
+                </div>
 
-                    {/* Live/Result Stats */}
-                    <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-6 w-full">
-                        <StatBox
-                            icon={<Download className="text-green-400" />}
-                            label="Download"
-                            value={displayDownload !== null ? displayDownload.toFixed(1) : "--"}
-                            unit="Mbps"
-                            highlight
-                            active={livePhase?.phase === "download"}
-                        />
-                        <StatBox
-                            icon={<Upload className="text-purple-400" />}
-                            label="Upload"
-                            value={displayUpload !== null ? displayUpload.toFixed(1) : "--"}
-                            unit="Mbps"
-                            active={livePhase?.phase === "upload"}
-                        />
-                        <StatBox
-                            icon={<Activity className="text-yellow-400" />}
-                            label="Ping"
-                            value={displayPing !== null ? displayPing.toString() : "--"}
-                            unit="ms"
-                            active={livePhase?.phase === "ping"}
-                        />
-                        <StatBox
-                            icon={<Wifi className="text-blue-400" />}
-                            label="Jitter"
-                            value={result ? result.jitter_ms.toString() : "--"}
-                            unit="ms"
-                        />
+                {/* Download / Ping+Jitter / Upload */}
+                <div className="grid grid-cols-[1fr_auto_1fr] divide-x divide-th-border">
+                    <div className={`py-6 text-center transition-all ${livePhase?.phase === 'download' ? 'bg-green-500/5' : ''}`}>
+                        <div className="flex items-center justify-center gap-1.5 mb-1">
+                            <Download size={14} className="text-green-400" />
+                            <span className="text-xs text-th-text-m uppercase tracking-wider">Download</span>
+                        </div>
+                        <div className="text-4xl font-bold text-th-text tabular-nums">
+                            {displayDownload !== null ? displayDownload.toFixed(1) : <span className="text-th-text-m">--</span>}
+                        </div>
+                        <div className="text-xs text-th-text-m mt-0.5">Mbps</div>
+                    </div>
+                    <div className="flex flex-col items-center justify-center gap-3 px-6">
+                        <div className={`text-center transition-colors ${livePhase?.phase === 'ping' ? 'text-yellow-300' : 'text-th-text-s'}`}>
+                            <div className="text-[10px] text-th-text-m uppercase tracking-wider mb-0.5">Ping</div>
+                            <div className="text-lg font-semibold text-th-text tabular-nums leading-tight">{displayPing ?? '--'}<span className="text-[10px] font-normal text-th-text-m ml-0.5">ms</span></div>
+                        </div>
+                        <div className="text-center text-th-text-s">
+                            <div className="text-[10px] text-th-text-m uppercase tracking-wider mb-0.5">Jitter</div>
+                            <div className="text-lg font-semibold text-th-text tabular-nums leading-tight">{result?.jitter_ms ?? '--'}<span className="text-[10px] font-normal text-th-text-m ml-0.5">ms</span></div>
+                        </div>
+                    </div>
+                    <div className={`py-6 text-center transition-all ${livePhase?.phase === 'upload' ? 'bg-purple-500/5' : ''}`}>
+                        <div className="flex items-center justify-center gap-1.5 mb-1">
+                            <Upload size={14} className="text-purple-400" />
+                            <span className="text-xs text-th-text-m uppercase tracking-wider">Upload</span>
+                        </div>
+                        <div className="text-4xl font-bold text-th-text tabular-nums">
+                            {displayUpload !== null ? displayUpload.toFixed(1) : <span className="text-th-text-m">--</span>}
+                        </div>
+                        <div className="text-xs text-th-text-m mt-0.5">Mbps</div>
                     </div>
                 </div>
 
-                {/* Metadata */}
-                {(result || isRunning) && (
-                    <div className="mt-8 pt-6 border-t border-th-border grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-th-text-s">
-                        <div className="flex items-center gap-2">
-                            <Server size={16} />
-                            <span>Server: <span className="text-th-text">{displayServer || "Finding optimal server..."}</span></span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <Wifi size={16} />
-                            <span>ISP: <span className="text-th-text">{displayISP || "--"}</span></span>
-                        </div>
+                {/* Progress */}
+                <div className="border-t border-th-border px-5 py-5 mt-1">
+
+                    {/* Progress Steps (always visible) */}
+                    <div className="flex gap-1">
+                        {['Server', 'Ping', 'Download', 'Upload'].map((step, i) => (
+                            <div key={step} className="flex-1 flex flex-col items-center gap-1">
+                                <div className={`h-1 w-full rounded-full transition-all duration-500 ${
+                                    isRunning && i < phaseProgress ? 'bg-th-accent'
+                                    : isRunning && i === phaseProgress ? 'bg-th-accent animate-pulse'
+                                    : !isRunning && result ? 'bg-th-accent/40'
+                                    : 'bg-th-raised'
+                                }`} />
+                                <span className={`text-[10px] ${
+                                    isRunning && i <= phaseProgress ? 'text-th-accent-t'
+                                    : !isRunning && result ? 'text-th-text-s'
+                                    : 'text-th-text-m'
+                                }`}>{step}</span>
+                            </div>
+                        ))}
                     </div>
-                )}
+                </div>
 
                 {error && (
-                    <div className="mt-6 p-4 bg-red-900/20 border border-red-900/50 rounded-lg text-red-200 text-center">
+                    <div className="border-t border-red-900/50 px-5 py-3 bg-red-900/10 text-red-300 text-sm text-center">
                         {error}
                     </div>
                 )}
             </div>
 
             {/* History Table */}
-            <div>
-                <h2 className="text-xl font-bold text-th-text mb-4 flex items-center gap-2">
-                    <Clock size={20} className="text-th-text-s" />
-                    History
-                </h2>
-                <div className="bg-th-surface border border-th-border rounded-xl overflow-hidden">
-                    <table className="w-full text-left text-sm text-th-text-s">
-                        <thead className="bg-th-base text-th-text font-medium uppercase text-xs tracking-wider">
-                            <tr>
-                                <th className="p-4">Date</th>
-                                <th className="p-4">Download</th>
-                                <th className="p-4">Upload</th>
-                                <th className="p-4">Ping</th>
-                                <th className="p-4">ISP</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-th-border">
-                            {history.length === 0 ? (
-                                <tr>
-                                    <td colSpan={5} className="p-8 text-center text-th-text-m italic">
-                                        No speed tests run yet.
-                                    </td>
-                                </tr>
-                            ) : (
-                                history.map((row, i) => (
-                                    <tr key={i} className="hover:bg-th-raised/50 transition-colors">
-                                        <td className="p-4 font-mono">{new Date(row.timestamp).toLocaleString()}</td>
-                                        <td className="p-4 text-green-400 font-bold">{row.download_mbps.toFixed(1)} Mbps</td>
-                                        <td className="p-4 text-purple-400 font-bold">{row.upload_mbps.toFixed(1)} Mbps</td>
-                                        <td className="p-4">{row.ping_ms} ms</td>
-                                        <td className="p-4">{row.isp}</td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
+            <div className="bg-th-surface border border-th-border rounded-xl overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-th-border flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Clock size={14} className="text-th-text-s" />
+                        <span className="text-sm font-semibold text-th-text">History</span>
+                    </div>
+                    {history.length > 0 && (
+                        <button
+                            onClick={async () => { await ClearSpeedTestHistory(); setHistory([]); }}
+                            className="text-xs text-th-text-m hover:text-red-400 transition-colors"
+                        >
+                            Clear All
+                        </button>
+                    )}
                 </div>
+                <table className="w-full text-left text-sm text-th-text-s">
+                    <thead className="bg-th-base text-th-text font-medium uppercase text-xs tracking-wider">
+                        <tr>
+                            <th className="px-4 py-2">Date</th>
+                            <th className="px-4 py-2">Download</th>
+                            <th className="px-4 py-2">Upload</th>
+                            <th className="px-4 py-2">Ping</th>
+                            <th className="px-4 py-2">Jitter</th>
+                            <th className="px-4 py-2">ISP</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-th-border">
+                        {history.length === 0 ? (
+                            <tr>
+                                <td colSpan={6} className="p-6 text-center text-th-text-m italic text-sm">
+                                    No speed tests run yet.
+                                </td>
+                            </tr>
+                        ) : (
+                            history.map((row, i) => (
+                                <tr key={i} className="hover:bg-th-raised/50 transition-colors">
+                                    <td className="px-4 py-2 font-mono text-xs">{new Date(row.timestamp).toLocaleString()}</td>
+                                    <td className="px-4 py-2 text-green-400 font-bold tabular-nums">{row.download_mbps.toFixed(1)} Mbps</td>
+                                    <td className="px-4 py-2 text-purple-400 font-bold tabular-nums">{row.upload_mbps.toFixed(1)} Mbps</td>
+                                    <td className="px-4 py-2 tabular-nums">{row.ping_ms} ms</td>
+                                    <td className="px-4 py-2 tabular-nums">{row.jitter_ms} ms</td>
+                                    <td className="px-4 py-2">{row.isp}</td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
             </div>
         </div>
     );
 };
 
-const StatBox = ({ icon, label, value, unit, highlight, active }: any) => (
-    <div className={`bg-th-base/50 p-4 rounded-xl border flex flex-col items-center justify-center text-center transition-all ${active ? 'border-cyan-500 shadow-[0_0_20px_rgba(6,182,212,0.3)]' : 'border-th-border'}`}>
-        <div className="mb-2 opacity-80">{icon}</div>
-        <div className="text-xs text-th-text-m uppercase tracking-wider mb-1">{label}</div>
-        <div className={`text-2xl font-bold ${highlight ? 'text-th-text scale-110' : 'text-th-text'}`}>
-            {value} <span className="text-xs font-normal text-th-text-m">{unit}</span>
-        </div>
-    </div>
-);

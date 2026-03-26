@@ -181,12 +181,12 @@ export function useTachyon() {
                     [id]: {
                         id,
                         url: url,
-                        filename: filename || "Initializing...",
+                        filename: filename || "Pending...",
                         progress: 0,
                         size: size || 0,
                         speed_MBs: 0,
                         eta: "--",
-                        status: "downloading",
+                        status: filename ? "downloading" : "pending",
                         path: path,
                         created_at: new Date().toISOString()
                     }

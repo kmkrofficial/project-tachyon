@@ -49,14 +49,14 @@ const ToastItem = ({ toast, onDismiss }: { toast: ToastMessage, onDismiss: () =>
         success: <CheckCircle size={20} className="text-green-400" />,
         error: <AlertCircle size={20} className="text-red-400" />,
         warning: <AlertCircle size={20} className="text-yellow-400" />,
-        info: <Info size={20} className="text-blue-400" />
+        info: <Info size={20} className="text-th-accent-t" />
     };
 
     const styles = {
         success: "bg-th-surface border-green-500/20 shadow-green-900/10",
         error: "bg-th-surface border-red-500/20 shadow-red-900/10",
         warning: "bg-th-surface border-yellow-500/20 shadow-yellow-900/10",
-        info: "bg-th-surface border-blue-500/20 shadow-blue-900/10",
+        info: "bg-th-surface border-th-accent/20 shadow-th-accent/10",
     }
 
     return (

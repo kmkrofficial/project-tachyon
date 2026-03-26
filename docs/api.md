@@ -1,4 +1,4 @@
-# Project Tachyon API Reference
+# Tachyon Download Manager API Reference
 
 This document describes the Wails-exposed API methods for frontend integration.
 

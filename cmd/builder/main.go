@@ -1,4 +1,4 @@
-// Package main implements a unified build system for Project Tachyon.
+// Package main implements a unified build system for Tachyon Download Manager.
 // Usage: go run cmd/builder/main.go [build|release|docker|check]
 package main
 
@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	appName    = "Tachyon"
+	appName    = "TDM"
 	appVersion = "1.0.0" // Synced with wails.json productVersion
 )
 
@@ -46,8 +46,8 @@ func main() {
 
 func printUsage() {
 	fmt.Println(`
-Tachyon Build System
-=====================
+TDM Build System
+=================
 
 Usage: go run cmd/builder/main.go <command>
 

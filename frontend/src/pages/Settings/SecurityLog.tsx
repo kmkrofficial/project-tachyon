@@ -80,26 +80,26 @@ export const SecurityLog: React.FC = () => {
         <div className="space-y-4 h-full flex flex-col">
             <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
-                    <Shield className="text-cyan-500" size={20} />
+                    <Shield className="text-th-accent-t" size={20} />
                     <h3 className="text-lg font-medium text-th-text">Security Dashboard</h3>
                 </div>
                 <div className="flex items-center gap-2">
                     {/* Tab buttons */}
                     <button
                         onClick={() => setActiveTab('audit')}
-                        className={`px-3 py-1 rounded-lg text-sm transition-colors ${activeTab === 'audit' ? 'bg-cyan-900/50 text-cyan-400' : 'bg-th-raised text-th-text-s'}`}
+                        className={`px-3 py-1 rounded-lg text-sm transition-colors ${activeTab === 'audit' ? 'bg-th-accent/20 text-th-accent-t' : 'bg-th-raised text-th-text-s'}`}
                     >
                         Audit Log
                     </button>
                     <button
                         onClick={() => setActiveTab('scans')}
-                        className={`px-3 py-1 rounded-lg text-sm transition-colors ${activeTab === 'scans' ? 'bg-cyan-900/50 text-cyan-400' : 'bg-th-raised text-th-text-s'}`}
+                        className={`px-3 py-1 rounded-lg text-sm transition-colors ${activeTab === 'scans' ? 'bg-th-accent/20 text-th-accent-t' : 'bg-th-raised text-th-text-s'}`}
                     >
                         Scan Results
                     </button>
                     <button
                         onClick={() => setPolling(!polling)}
-                        className={`p-2 rounded-lg transition-colors ${polling ? 'bg-cyan-900/30 text-cyan-400' : 'bg-th-raised text-th-text-s'}`}
+                        className={`p-2 rounded-lg transition-colors ${polling ? 'bg-th-accent/15 text-th-accent-t' : 'bg-th-raised text-th-text-s'}`}
                         title={polling ? "Polling Active" : "Polling Paused"}
                     >
                         <RefreshCw size={16} className={polling ? "animate-spin-slow" : ""} />
@@ -126,7 +126,7 @@ export const SecurityLog: React.FC = () => {
                                         <div className="w-24 text-th-text-m shrink-0">
                                             {new Date(log.timestamp).toLocaleTimeString()}
                                         </div>
-                                        <div className="w-24 text-blue-400 shrink-0 truncate" title={log.source_ip}>
+                                        <div className="w-24 text-th-accent-t shrink-0 truncate" title={log.source_ip}>
                                             {log.source_ip}
                                         </div>
                                         <div className={`w-16 font-bold shrink-0 ${log.status >= 400 ? 'text-red-500' :

@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
+import { useSettingsStore } from '../../store';
 
 interface HostRule {
     domain: string;
@@ -7,6 +8,7 @@ interface HostRule {
 }
 
 export const NetworkSettings: React.FC = () => {
+    const settings = useSettingsStore();
     const [rules, setRules] = useState<HostRule[]>([]);
     const [newDomain, setNewDomain] = useState('');
     const [newLimit, setNewLimit] = useState(2);
@@ -57,6 +59,54 @@ export const NetworkSettings: React.FC = () => {
 
     return (
         <div className="space-y-6">
+            <div>
+                <label className="block text-sm font-medium text-th-text mb-2">
+                    Concurrent Downloads: {settings.maxConcurrentDownloads === 0 ? 'Unlimited' : settings.maxConcurrentDownloads}
+                </label>
+                <input
+                    type="range" min="0" max="10"
+                    value={settings.maxConcurrentDownloads}
+                    onChange={(e) => settings.setMaxConcurrentDownloads(parseInt(e.target.value))}
+                    className="w-full h-2 bg-th-overlay rounded-lg appearance-none cursor-pointer accent-th-accent"
+                />
+                <div className="flex justify-between text-xs text-th-text-m mt-1">
+                    <span>Unlimited</span><span>10</span>
+                </div>
+            </div>
+
+            <div>
+                <label className="block text-sm font-medium text-th-text mb-2">
+                    Threads per Download: {settings.threadsPerDownload}
+                </label>
+                <input
+                    type="range" min="4" max="32" step="4"
+                    value={settings.threadsPerDownload}
+                    onChange={(e) => settings.setThreadsPerDownload(parseInt(e.target.value))}
+                    className="w-full h-2 bg-th-overlay rounded-lg appearance-none cursor-pointer accent-purple-500"
+                />
+                <div className="flex justify-between text-xs text-th-text-m mt-1">
+                    <span>4</span><span>8</span><span>12</span><span>16</span><span>20</span><span>24</span><span>28</span><span>32</span>
+                </div>
+            </div>
+
+            <div>
+                <label className="block text-sm font-medium text-th-text mb-2">
+                    Download Retries: {settings.downloadRetries === 0 ? 'Disabled' : settings.downloadRetries}
+                </label>
+                <input
+                    type="range" min="0" max="10"
+                    value={settings.downloadRetries}
+                    onChange={(e) => settings.setDownloadRetries(parseInt(e.target.value))}
+                    className="w-full h-2 bg-th-overlay rounded-lg appearance-none cursor-pointer accent-green-500"
+                />
+                <div className="flex justify-between text-xs text-th-text-m mt-1">
+                    <span>Off</span><span>10</span>
+                </div>
+            </div>
+
+            <hr className="border-th-border" />
+
+            {/* Host Limits */}
             <div className="bg-th-raised p-4 rounded-lg">
                 <span className="block text-th-text font-medium mb-2">Concurrency Limits per Host</span>
                 <p className="text-xs text-th-text-s mb-4">Limit simultaneous downloads from specific domains (e.g. mega.nz to 1).</p>
@@ -105,7 +155,7 @@ export const NetworkSettings: React.FC = () => {
                     <button
                         onClick={addRule}
                         disabled={!newDomain.trim()}
-                        className="p-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+                        className="p-2 bg-th-accent hover:bg-th-accent-h disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
                     >
                         <Plus size={16} />
                     </button>

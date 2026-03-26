@@ -12,7 +12,7 @@ export function DownloadItem({ item, onOpenFolder }: DownloadItemProps) {
         if (filename.endsWith(".mp4") || filename.endsWith(".mkv")) return <FileVideo className="text-purple-400" size={32} />;
         if (filename.endsWith(".zip") || filename.endsWith(".rar")) return <FileArchive className="text-yellow-400" size={32} />;
         if (filename.endsWith(".txt") || filename.endsWith(".md")) return <FileText className="text-gray-400" size={32} />;
-        return <File className="text-blue-400" size={32} />;
+        return <File className="text-th-accent-t" size={32} />;
     };
 
     return (

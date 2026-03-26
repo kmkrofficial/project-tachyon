@@ -43,10 +43,10 @@ export const MCPDashboard: React.FC = () => {
     return (
         <div className="space-y-6">
             {/* Header / Main Toggle */}
-            <div className={`p-6 rounded-xl border transition-colors ${enabled ? "bg-cyan-900/20 border-cyan-500/30" : "bg-th-raised/50 border-th-border"}`}>
+            <div className={`p-6 rounded-xl border transition-colors ${enabled ? "bg-th-accent/10 border-th-accent/30" : "bg-th-raised/50 border-th-border"}`}>
                 <div className="flex items-start justify-between">
                     <div className="flex gap-4">
-                        <div className={`p-3 rounded-lg h-fit ${enabled ? "bg-cyan-500/10 text-cyan-400" : "bg-th-overlay/50 text-th-text-m"}`}>
+                        <div className={`p-3 rounded-lg h-fit ${enabled ? "bg-th-accent/10 text-th-accent-t" : "bg-th-overlay/50 text-th-text-m"}`}>
                             <Bot size={28} />
                         </div>
                         <div>
@@ -63,7 +63,7 @@ export const MCPDashboard: React.FC = () => {
                                 </div>
                                 <div className="bg-th-base/30 p-2 rounded border border-th-border">
                                     <span className="text-th-text-m block">Transport</span>
-                                    <span className="text-cyan-400">STDIN + HTTP</span>
+                                    <span className="text-th-accent-t">STDIN + HTTP</span>
                                 </div>
                             </div>
                         </div>
@@ -76,7 +76,7 @@ export const MCPDashboard: React.FC = () => {
                             checked={enabled}
                             onChange={(e) => handleEnableChange(e.target.checked)}
                         />
-                        <div className="w-14 h-7 bg-th-overlay peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-cyan-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-cyan-600"></div>
+                        <div className="w-14 h-7 bg-th-overlay peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-th-accent/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-th-accent"></div>
                     </label>
                 </div>
             </div>
@@ -95,7 +95,7 @@ export const MCPDashboard: React.FC = () => {
                                     type="number"
                                     value={port}
                                     onChange={handlePortChange}
-                                    className="w-full bg-th-base/30 border border-th-border rounded-lg p-2.5 text-th-text focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none"
+                                    className="w-full bg-th-base/30 border border-th-border rounded-lg p-2.5 text-th-text focus:border-th-accent focus:ring-1 focus:ring-th-accent outline-none"
                                 />
                                 {showRestartWarning && (
                                     <div className="absolute right-0 top-0 h-full flex items-center pr-3 pointer-events-none">
@@ -111,7 +111,7 @@ export const MCPDashboard: React.FC = () => {
                                 type="number"
                                 value={maxConcurrent}
                                 onChange={handleConcurrentChange}
-                                className="w-full bg-th-base/30 border border-th-border rounded-lg p-2.5 text-th-text focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none"
+                                className="w-full bg-th-base/30 border border-th-border rounded-lg p-2.5 text-th-text focus:border-th-accent focus:ring-1 focus:ring-th-accent outline-none"
                             />
                             <p className="text-xs text-th-text-m mt-1">Simultaneous AI tool calls processed.</p>
                         </div>
@@ -121,7 +121,7 @@ export const MCPDashboard: React.FC = () => {
                     <div>
                         <label className="block text-sm font-medium text-th-text-s mb-2">Access Token (X-Tachyon-Token)</label>
                         <div className="flex gap-2">
-                            <code className="flex-1 bg-th-base/50 border border-th-border rounded-lg p-2.5 text-cyan-400 font-mono text-sm break-all">
+                            <code className="flex-1 bg-th-base/50 border border-th-border rounded-lg p-2.5 text-th-accent-t font-mono text-sm break-all">
                                 {token}
                             </code>
                             <button onClick={copyToken} className="bg-th-raised hover:bg-th-overlay text-th-text p-2.5 rounded-lg border border-th-border transition-colors">

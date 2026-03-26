@@ -61,6 +61,11 @@ func (a *App) GetSpeedTestHistory() []storage.SpeedTestHistory {
 	return history
 }
 
+// ClearSpeedTestHistory deletes all speed test records
+func (a *App) ClearSpeedTestHistory() error {
+	return a.engine.GetStorage().ClearSpeedTestHistory()
+}
+
 // GetLifetimeStats returns total bytes downloaded over lifetime
 func (a *App) GetLifetimeStats() int64 {
 	stats := a.engine.GetStats()
