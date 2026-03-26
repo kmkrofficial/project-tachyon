@@ -154,7 +154,8 @@ secrets.json
 # Temporary & Cache Files
 # ================================
 tmp/
-temp/
+temp/*
+!temp/.gitkeep
 *.tmp
 *.temp
 *.bak
@@ -163,6 +164,33 @@ temp/
 *.orig
 *.BACKUP.*
 *.BASE.*
+
+# ================================
+# Debug & Diagnostic Output
+# ================================
+# Temp scripts, debug logs, and diagnostic output from dev sessions
+# These MUST go in temp/ during development
+*.log
+vtest.*
+vt_out*
+govet.*
+vet_*.log
+nodetest.*
+vitest_result.*
+test_fail.*
+
+# ================================
+# Build Binaries at Project Root
+# ================================
+/project-tachyon.exe
+/builder.exe
+/tachyon-mcp.exe
+
+# ================================
+# Wails Dev Temp Directory
+# ================================
+.wails-temp/
+bin/
 *.LOCAL.*
 *.REMOTE.*
 *_BACKUP_*.txt

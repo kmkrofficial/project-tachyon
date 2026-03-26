@@ -63,4 +63,16 @@
 - **No Ghost Features:** If a backend logic exists (e.g., "Virus Scanner"), it MUST have a visual indicator in the UI.
 - **Real-Time Feedback:** Use Wails Events (`runtime.EventsEmit`) for all long-running processes. Never rely on the user to "Refresh".
 
+# 7. TEMP FILE DISCIPLINE (Zero Pollution)
+- **Temp Directory:** ALL diagnostic scripts, debug output, test logs, and throwaway files MUST be written to `temp/` at the project root. NEVER write `.txt`, `.log`, or scratch files to the project root or any source directory.
+- **Gitignored by Default:** `temp/` contents (except `.gitkeep`) are excluded via `.gitignore`. Nothing in `temp/` is committed.
+- **Cleanup After Use:** Once a temp file's purpose is fulfilled (test passes, debug session ends, diagnosis complete), DELETE it immediately. Do not leave stale files in `temp/`.
+- **Naming Convention:** Use descriptive names: `temp/vitest_run_output.log`, `temp/govet_engine.log`, `temp/debug_probe.txt`. No generic names like `temp/out.txt`.
+
+# 8. COMMIT DISCIPLINE (Post-Execution)
+- **Commit After Completion:** After finishing a coding task (feature, fix, test suite, refactor), create a git commit immediately. Do not accumulate uncommitted work across tasks.
+- **Test Before Commit:** Run relevant tests (`go vet ./...`, `go test ./...`, or frontend tests) and confirm they pass before committing.
+- **Atomic Commits:** Each commit should represent one logical change. Do not bundle unrelated changes.
+- **Follow Commit Protocol:** Use the format from Section 5. Every commit message must be `<type>: <description>` with lowercase description.
+
 # END OF PROTOCOL
