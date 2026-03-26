@@ -4,6 +4,7 @@ import (
 	"embed"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime"
 
 	"project-tachyon/internal/api"
@@ -48,7 +49,23 @@ func main() {
 	}
 
 	// Initialize Storage
-	store, err := storage.NewStorage()
+	var store *storage.Storage
+	testMode := os.Getenv("TACHYON_TEST_MODE") == "1"
+	if testMode {
+		testDir := os.Getenv("TACHYON_TEST_DIR")
+		if testDir == "" {
+			testDir = filepath.Join(os.TempDir(), "tachyon-test")
+		}
+		os.MkdirAll(testDir, 0755)
+		dbPath := filepath.Join(testDir, "test.db")
+		store, err = storage.NewStorageWithPath(dbPath)
+		// Override download path for tests
+		os.Setenv("TACHYON_DOWNLOAD_DIR", filepath.Join(testDir, "downloads"))
+		os.MkdirAll(filepath.Join(testDir, "downloads"), 0755)
+		log.Info("Test mode enabled", "dir", testDir)
+	} else {
+		store, err = storage.NewStorage()
+	}
 	if err != nil {
 		log.Error("Error initializing storage", "error", err)
 		println("Error initializing storage:", err.Error())
@@ -134,7 +151,7 @@ func main() {
 	})
 
 	// Create application with Wails options
-	err = wails.Run(&options.App{
+	appOpts := &options.App{
 		Title:  "project-tachyon",
 		Width:  1024,
 		Height: 768,
@@ -149,7 +166,9 @@ func main() {
 		Bind: []interface{}{
 			application,
 		},
-	})
+	}
+
+	err = wails.Run(appOpts)
 
 	if err != nil {
 		println("Error:", err.Error())

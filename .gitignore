@@ -185,6 +185,9 @@ test_fail.*
 /project-tachyon.exe
 /builder.exe
 /tachyon-mcp.exe
+/test_server.exe
+
+
 
 # ================================
 # Wails Dev Temp Directory

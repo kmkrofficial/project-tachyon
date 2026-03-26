@@ -6,7 +6,21 @@ export default {
         "./src/**/*.{js,ts,jsx,tsx}",
     ],
     theme: {
-        extend: {},
+        extend: {
+            colors: {
+                th: {
+                    base:       'rgb(var(--th-base) / <alpha-value>)',
+                    surface:    'rgb(var(--th-surface) / <alpha-value>)',
+                    raised:     'rgb(var(--th-raised) / <alpha-value>)',
+                    overlay:    'rgb(var(--th-overlay) / <alpha-value>)',
+                    border:     'rgb(var(--th-border) / <alpha-value>)',
+                    'border-s': 'rgb(var(--th-border-s) / <alpha-value>)',
+                    text:       'rgb(var(--th-text) / <alpha-value>)',
+                    'text-s':   'rgb(var(--th-text-s) / <alpha-value>)',
+                    'text-m':   'rgb(var(--th-text-m) / <alpha-value>)',
+                },
+            },
+        },
     },
     plugins: [],
 }

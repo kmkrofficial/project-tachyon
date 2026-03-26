@@ -57,26 +57,26 @@ export const NetworkSettings: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            <div className="bg-gray-800 p-4 rounded-lg">
-                <span className="block text-white font-medium mb-2">Concurrency Limits per Host</span>
-                <p className="text-xs text-gray-400 mb-4">Limit simultaneous downloads from specific domains (e.g. mega.nz to 1).</p>
+            <div className="bg-th-raised p-4 rounded-lg">
+                <span className="block text-th-text font-medium mb-2">Concurrency Limits per Host</span>
+                <p className="text-xs text-th-text-s mb-4">Limit simultaneous downloads from specific domains (e.g. mega.nz to 1).</p>
 
                 {/* Existing Rules */}
                 {rules.length > 0 && (
                     <div className="space-y-2 mb-4">
                         {rules.map(rule => (
-                            <div key={rule.domain} className="flex items-center gap-3 bg-gray-900 rounded-lg px-3 py-2">
-                                <span className="flex-1 text-sm text-gray-200 font-mono">{rule.domain}</span>
+                            <div key={rule.domain} className="flex items-center gap-3 bg-th-surface rounded-lg px-3 py-2">
+                                <span className="flex-1 text-sm text-th-text font-mono">{rule.domain}</span>
                                 <input
                                     type="number"
                                     min={1}
                                     max={32}
                                     value={rule.limit}
                                     onChange={e => updateLimit(rule.domain, parseInt(e.target.value) || 1)}
-                                    className="w-16 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm text-white text-center"
+                                    className="w-16 bg-th-raised border border-th-border rounded px-2 py-1 text-sm text-th-text text-center"
                                 />
-                                <span className="text-xs text-gray-500">max</span>
-                                <button onClick={() => removeRule(rule.domain)} className="p-1 text-gray-500 hover:text-red-400 transition-colors">
+                                <span className="text-xs text-th-text-m">max</span>
+                                <button onClick={() => removeRule(rule.domain)} className="p-1 text-th-text-m hover:text-red-400 transition-colors">
                                     <Trash2 size={14} />
                                 </button>
                             </div>
@@ -92,7 +92,7 @@ export const NetworkSettings: React.FC = () => {
                         value={newDomain}
                         onChange={e => setNewDomain(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && addRule()}
-                        className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600"
+                        className="flex-1 bg-th-surface border border-th-border rounded-lg px-3 py-2 text-sm text-th-text placeholder-th-text-m"
                     />
                     <input
                         type="number"
@@ -100,7 +100,7 @@ export const NetworkSettings: React.FC = () => {
                         max={32}
                         value={newLimit}
                         onChange={e => setNewLimit(parseInt(e.target.value) || 1)}
-                        className="w-16 bg-gray-900 border border-gray-700 rounded-lg px-2 py-2 text-sm text-white text-center"
+                        className="w-16 bg-th-surface border border-th-border rounded-lg px-2 py-2 text-sm text-th-text text-center"
                     />
                     <button
                         onClick={addRule}

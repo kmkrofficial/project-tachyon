@@ -100,12 +100,12 @@ export const SpeedTestTab: React.FC = () => {
         <div className="space-y-6 animate-fade-in">
             {/* Header */}
             <div>
-                <h1 className="text-3xl font-bold text-white mb-2">Network Speed Test</h1>
-                <p className="text-slate-400">Measure your internet connection performance.</p>
+                <h1 className="text-3xl font-bold text-th-text mb-2">Network Speed Test</h1>
+                <p className="text-th-text-s">Measure your internet connection performance.</p>
             </div>
 
             {/* Main Test Area */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 relative overflow-hidden">
+            <div className="bg-th-surface border border-th-border rounded-2xl p-8 relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-32 bg-cyan-500/10 blur-[100px] rounded-full pointer-events-none" />
 
                 <div className="flex flex-col md:flex-row items-center gap-12 relative z-10">
@@ -174,14 +174,14 @@ export const SpeedTestTab: React.FC = () => {
 
                 {/* Metadata */}
                 {(result || isRunning) && (
-                    <div className="mt-8 pt-6 border-t border-slate-800 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-400">
+                    <div className="mt-8 pt-6 border-t border-th-border grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-th-text-s">
                         <div className="flex items-center gap-2">
                             <Server size={16} />
-                            <span>Server: <span className="text-slate-200">{displayServer || "Finding optimal server..."}</span></span>
+                            <span>Server: <span className="text-th-text">{displayServer || "Finding optimal server..."}</span></span>
                         </div>
                         <div className="flex items-center gap-2">
                             <Wifi size={16} />
-                            <span>ISP: <span className="text-slate-200">{displayISP || "--"}</span></span>
+                            <span>ISP: <span className="text-th-text">{displayISP || "--"}</span></span>
                         </div>
                     </div>
                 )}
@@ -195,13 +195,13 @@ export const SpeedTestTab: React.FC = () => {
 
             {/* History Table */}
             <div>
-                <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                    <Clock size={20} className="text-slate-400" />
+                <h2 className="text-xl font-bold text-th-text mb-4 flex items-center gap-2">
+                    <Clock size={20} className="text-th-text-s" />
                     History
                 </h2>
-                <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-                    <table className="w-full text-left text-sm text-slate-400">
-                        <thead className="bg-slate-950 text-slate-200 font-medium uppercase text-xs tracking-wider">
+                <div className="bg-th-surface border border-th-border rounded-xl overflow-hidden">
+                    <table className="w-full text-left text-sm text-th-text-s">
+                        <thead className="bg-th-base text-th-text font-medium uppercase text-xs tracking-wider">
                             <tr>
                                 <th className="p-4">Date</th>
                                 <th className="p-4">Download</th>
@@ -210,16 +210,16 @@ export const SpeedTestTab: React.FC = () => {
                                 <th className="p-4">ISP</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-800">
+                        <tbody className="divide-y divide-th-border">
                             {history.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="p-8 text-center text-slate-500 italic">
+                                    <td colSpan={5} className="p-8 text-center text-th-text-m italic">
                                         No speed tests run yet.
                                     </td>
                                 </tr>
                             ) : (
                                 history.map((row, i) => (
-                                    <tr key={i} className="hover:bg-slate-800/50 transition-colors">
+                                    <tr key={i} className="hover:bg-th-raised/50 transition-colors">
                                         <td className="p-4 font-mono">{new Date(row.timestamp).toLocaleString()}</td>
                                         <td className="p-4 text-green-400 font-bold">{row.download_mbps.toFixed(1)} Mbps</td>
                                         <td className="p-4 text-purple-400 font-bold">{row.upload_mbps.toFixed(1)} Mbps</td>
@@ -237,11 +237,11 @@ export const SpeedTestTab: React.FC = () => {
 };
 
 const StatBox = ({ icon, label, value, unit, highlight, active }: any) => (
-    <div className={`bg-slate-950/50 p-4 rounded-xl border flex flex-col items-center justify-center text-center transition-all ${active ? 'border-cyan-500 shadow-[0_0_20px_rgba(6,182,212,0.3)]' : 'border-slate-800'}`}>
+    <div className={`bg-th-base/50 p-4 rounded-xl border flex flex-col items-center justify-center text-center transition-all ${active ? 'border-cyan-500 shadow-[0_0_20px_rgba(6,182,212,0.3)]' : 'border-th-border'}`}>
         <div className="mb-2 opacity-80">{icon}</div>
-        <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">{label}</div>
-        <div className={`text-2xl font-bold ${highlight ? 'text-white scale-110' : 'text-slate-200'}`}>
-            {value} <span className="text-xs font-normal text-slate-500">{unit}</span>
+        <div className="text-xs text-th-text-m uppercase tracking-wider mb-1">{label}</div>
+        <div className={`text-2xl font-bold ${highlight ? 'text-th-text scale-110' : 'text-th-text'}`}>
+            {value} <span className="text-xs font-normal text-th-text-m">{unit}</span>
         </div>
     </div>
 );

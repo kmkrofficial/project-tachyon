@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Play, Pause, Activity, Wifi } from 'lucide-react';
+import { Plus, Play, Pause, Activity, Wifi, Sun, Moon, Monitor } from 'lucide-react';
 import { cn } from '../utils';
 import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime';
+import { useSettingsStore } from '../store';
 
 interface HeaderProps {
     onAddDownload: () => void;
     onPauseAll: () => void;
     onResumeAll: () => void;
     globalSpeed?: number; // MB/s
+    sidebarCollapsed?: boolean;
 }
 
 interface NetworkHealthEvent {
@@ -15,8 +17,16 @@ interface NetworkHealthEvent {
     details?: string;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onAddDownload, onPauseAll, onResumeAll, globalSpeed = 0 }) => {
+const themeOptions = [
+    { value: 'light' as const, icon: Sun, label: 'Light' },
+    { value: 'dark' as const, icon: Moon, label: 'Dark' },
+    { value: 'system' as const, icon: Monitor, label: 'System' },
+];
+
+export const Header: React.FC<HeaderProps> = ({ onAddDownload, onPauseAll, onResumeAll, globalSpeed = 0, sidebarCollapsed = false }) => {
     const [networkHealth, setNetworkHealth] = useState<NetworkHealthEvent>({ level: 'normal' });
+    const theme = useSettingsStore(s => s.theme);
+    const setTheme = useSettingsStore(s => s.setTheme);
 
     // Listen for network health updates
     useEffect(() => {
@@ -52,47 +62,68 @@ export const Header: React.FC<HeaderProps> = ({ onAddDownload, onPauseAll, onRes
         }
     };
 
+    const cycleTheme = () => {
+        const order: Array<'light' | 'dark' | 'system'> = ['light', 'dark', 'system'];
+        const idx = order.indexOf(theme);
+        setTheme(order[(idx + 1) % order.length]);
+    };
+
+    const currentThemeIcon = themeOptions.find(t => t.value === theme)!;
+    const ThemeIcon = currentThemeIcon.icon;
+
     return (
-        <header className="h-16 fixed top-0 right-0 left-64 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 z-40 flex items-center justify-between px-6 dragging-header">
+        <header className={cn(
+            "h-16 fixed top-0 right-0 bg-th-surface/80 backdrop-blur-md border-b border-th-border z-40 flex items-center justify-between px-6 dragging-header transition-all duration-300",
+            sidebarCollapsed ? "left-16" : "left-64"
+        )}>
             {/* Left: Breadcrumbs / Title */}
             <div className="flex items-center gap-2">
-                <h1 className="text-lg font-semibold text-slate-100">Dashboard</h1>
-                <span className="text-slate-600">/</span>
-                <span className="text-sm text-slate-400">Overview</span>
+                <h1 className="text-lg font-semibold text-th-text">Dashboard</h1>
+                <span className="text-th-text-m">/</span>
+                <span className="text-sm text-th-text-s">Overview</span>
             </div>
 
             {/* Right: Global Actions */}
-            <div className="flex items-center gap-4 no-drag">
+            <div className="flex items-center gap-2 sm:gap-4 no-drag">
 
                 {/* Network Health Indicator */}
                 <div
-                    className="flex items-center gap-2 px-3 py-1.5 bg-slate-800/50 rounded-full border border-slate-700/50 cursor-help"
+                    className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-th-raised/50 rounded-full border border-th-border-s/50 cursor-help"
                     title={`Network: ${getHealthLabel()}${networkHealth.details ? ` - ${networkHealth.details}` : ''}`}
                 >
-                    <Wifi size={14} className="text-slate-400" />
+                    <Wifi size={14} className="text-th-text-s" />
                     <div className={cn("w-2 h-2 rounded-full animate-pulse", getHealthColor())} />
-                    <span className="text-xs text-slate-400">{getHealthLabel()}</span>
+                    <span className="text-xs text-th-text-s">{getHealthLabel()}</span>
                 </div>
 
                 {/* Global Speed Indicator */}
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-800/50 rounded-full border border-slate-700/50" title="Total Real-time Bandwidth">
-                    <Activity size={14} className="text-cyan-400 animate-pulse" />
-                    <span className="text-sm font-mono text-cyan-400">{globalSpeed.toFixed(1)} MB/s</span>
+                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-th-raised/50 rounded-full border border-th-border-s/50" title="Total Real-time Bandwidth">
+                    <Activity size={14} className="text-cyan-500 animate-pulse" />
+                    <span className="text-sm font-mono text-cyan-500">{globalSpeed.toFixed(1)} MB/s</span>
                 </div>
 
-                <div className="h-6 w-px bg-slate-800"></div>
+                <div className="h-6 w-px bg-th-border hidden sm:block"></div>
+
+                {/* Theme Toggle */}
+                <button
+                    onClick={cycleTheme}
+                    className="p-2 text-th-text-s hover:text-th-text hover:bg-th-raised rounded-lg transition-colors"
+                    title={`Theme: ${currentThemeIcon.label}`}
+                >
+                    <ThemeIcon size={18} />
+                </button>
 
                 {/* Pause/Resume All */}
                 <button
                     onClick={onResumeAll}
-                    className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                    className="p-2 text-th-text-s hover:text-th-text hover:bg-th-raised rounded-lg transition-colors"
                     title="Resume All"
                 >
                     <Play size={18} />
                 </button>
                 <button
                     onClick={onPauseAll}
-                    className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                    className="p-2 text-th-text-s hover:text-th-text hover:bg-th-raised rounded-lg transition-colors"
                     title="Pause All"
                 >
                     <Pause size={18} />
@@ -104,7 +135,7 @@ export const Header: React.FC<HeaderProps> = ({ onAddDownload, onPauseAll, onRes
                     className="flex items-center gap-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white px-4 py-2 rounded-lg font-medium shadow-lg shadow-cyan-900/20 transition-all active:scale-95"
                 >
                     <Plus size={18} />
-                    <span className="text-sm">Add Download</span>
+                    <span className="text-sm hidden sm:inline">Add Download</span>
                 </button>
             </div>
         </header>

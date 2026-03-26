@@ -4,11 +4,34 @@
 
 :root {
     font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+
+    /* Light theme tokens */
+    --th-base:     248 250 252;   /* slate-50  */
+    --th-surface:  255 255 255;   /* white     */
+    --th-raised:   241 245 249;   /* slate-100 */
+    --th-overlay:  226 232 240;   /* slate-200 */
+    --th-border:   203 213 225;   /* slate-300 */
+    --th-border-s: 226 232 240;   /* slate-200 */
+    --th-text:     15 23 42;      /* slate-900 */
+    --th-text-s:   71 85 105;     /* slate-500 */
+    --th-text-m:   100 116 139;   /* slate-500 */
+}
+
+.dark {
+    --th-base:     2 6 23;        /* slate-950 */
+    --th-surface:  15 23 42;      /* slate-900 */
+    --th-raised:   30 41 59;      /* slate-800 */
+    --th-overlay:  51 65 85;      /* slate-700 */
+    --th-border:   30 41 59;      /* slate-800 */
+    --th-border-s: 51 65 85;      /* slate-700 */
+    --th-text:     226 232 240;   /* slate-200 */
+    --th-text-s:   148 163 184;   /* slate-400 */
+    --th-text-m:   100 116 139;   /* slate-500 */
 }
 
 @layer base {
     body {
-        @apply bg-slate-950 text-slate-200 antialiased;
+        @apply bg-th-base text-th-text antialiased;
     }
 }
 
@@ -19,16 +42,16 @@
 }
 
 ::-webkit-scrollbar-track {
-    background: #0f172a;
+    background: rgb(var(--th-base));
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #334155;
+    background: rgb(var(--th-overlay));
     border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #475569;
+    background: rgb(var(--th-text-m));
 }
 
 /* Custom Drag Region for Wails */

@@ -125,6 +125,20 @@ export function useTachyon() {
             }))
         });
 
+        // Listen for Timeout
+        const cleanupTimeout = EventsOn("download:timeout", (data: any) => {
+            setDownloads((prev) => ({
+                ...prev,
+                [data.id]: {
+                    ...prev[data.id],
+                    status: "error",
+                    error: data.reason || "Download timed out",
+                    speed_MBs: 0,
+                    eta: "--"
+                }
+            }))
+        });
+
         // Listen for Queue Reordered
         const cleanupReordered = EventsOn("queue:reordered", () => {
             loadHistory();
@@ -137,6 +151,7 @@ export function useTachyon() {
             EventsOff("download:deleted");
             EventsOff("download:error");
             EventsOff("download:stopped");
+            EventsOff("download:timeout");
             EventsOff("queue:reordered");
         };
     }, []);

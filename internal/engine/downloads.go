@@ -145,13 +145,18 @@ func (e *TachyonEngine) PauseDownload(id string) error {
 
 // ResumeDownload re-queues a paused or stopped download to continue
 func (e *TachyonEngine) ResumeDownload(id string) error {
+	// Guard: do not re-queue a download that is already actively running
+	if _, active := e.activeDownloads.Load(id); active {
+		return fmt.Errorf("download %s is already active", id)
+	}
+
 	task, err := e.storage.GetTask(id)
 	if err != nil {
 		return fmt.Errorf("task not found: %w", err)
 	}
 
-	// Only resume if it's in a resumable state (including stuck "downloading")
-	resumableStates := map[string]bool{"paused": true, "stopped": true, "error": true, "downloading": true, "pending": true}
+	// Only resume if it's in a resumable state
+	resumableStates := map[string]bool{"paused": true, "stopped": true, "error": true}
 	if !resumableStates[task.Status] {
 		return fmt.Errorf("cannot resume download in status: %s", task.Status)
 	}
@@ -168,26 +173,14 @@ func (e *TachyonEngine) ResumeDownload(id string) error {
 
 	// Update status to pending and re-queue
 	task.Status = "pending"
+	task.UpdatedAt = time.Now().Format(time.RFC3339)
 	if err := e.storage.SaveTask(task); err != nil {
 		return err
 	}
 
-	// Re-queue for processing
-	e.queue.Push(&storage.DownloadTask{
-		ID:         task.ID,
-		URL:        task.URL,
-		Filename:   task.Filename,
-		SavePath:   task.SavePath,
-		Status:     "pending",
-		Priority:   task.Priority,
-		TotalSize:  task.TotalSize,
-		Downloaded: task.Downloaded,
-		MetaJSON:   task.MetaJSON,
-		Category:   task.Category,
-		QueueOrder: task.QueueOrder,
-		CreatedAt:  task.CreatedAt,
-		UpdatedAt:  time.Now().Format(time.RFC3339),
-	})
+	// Re-queue the complete task (preserving Headers, Cookies, ExpectedHash, etc.)
+	resumable := task // value copy
+	e.queue.Push(&resumable)
 
 	// Emit event to update UI
 	if e.ctx != nil {

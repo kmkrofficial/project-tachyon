@@ -180,14 +180,14 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in">
-            <div className="bg-slate-900 w-full max-w-lg rounded-2xl border border-slate-800 shadow-2xl overflow-hidden transform transition-all scale-100">
+            <div className="bg-th-surface w-full max-w-lg rounded-2xl border border-th-border shadow-2xl overflow-hidden transform transition-all scale-100">
                 {/* Header */}
-                <div className="flex justify-between items-center p-5 border-b border-slate-800 bg-slate-900/50">
-                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <div className="flex justify-between items-center p-5 border-b border-th-border bg-th-surface/50">
+                    <h2 className="text-lg font-bold text-th-text flex items-center gap-2">
                         <Globe className="text-cyan-500" size={20} />
                         Add New Download
                     </h2>
-                    <button onClick={handleClose} className="p-1 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors">
+                    <button onClick={handleClose} className="p-1 hover:bg-th-raised rounded-full text-th-text-s hover:text-th-text transition-colors">
                         <X size={20} />
                     </button>
                 </div>
@@ -195,14 +195,14 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
                 {step === 'input' || step === 'probing' ? (
                     <form onSubmit={handleProbe} className="p-6 space-y-6">
                         <div>
-                            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Source URL</label>
+                            <label className="block text-xs font-semibold text-th-text-s uppercase tracking-wider mb-2">Source URL</label>
                             <div className="relative">
-                                <Link2 className="absolute left-3 top-3 text-slate-500" size={18} />
+                                <Link2 className="absolute left-3 top-3 text-th-text-m" size={18} />
                                 <input
                                     type="text"
                                     autoFocus
                                     placeholder="https://example.com/file.zip"
-                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 pl-10 pr-4 text-slate-200 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all font-mono text-sm shadow-inner"
+                                    className="w-full bg-th-base border border-th-border rounded-xl py-3 pl-10 pr-4 text-th-text focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all font-mono text-sm shadow-inner"
                                     value={url}
                                     onChange={(e) => setUrl(e.target.value)}
                                     disabled={step === 'probing'}
@@ -221,7 +221,7 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
                             <button
                                 type="button"
                                 onClick={handleClose}
-                                className="px-5 py-2.5 rounded-xl font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+                                className="px-5 py-2.5 rounded-xl font-medium text-th-text-s hover:bg-th-raised hover:text-th-text transition-colors"
                             >
                                 Cancel
                             </button>
@@ -237,14 +237,14 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
                 ) : (
                     <div className="p-6 space-y-6">
                         {/* Summary */}
-                        <div className="flex items-start gap-4 p-4 bg-slate-800/50 rounded-xl border border-slate-700">
-                            <div className="p-3 bg-slate-700/50 rounded-lg">
+                        <div className="flex items-start gap-4 p-4 bg-th-raised/50 rounded-xl border border-th-border-s">
+                            <div className="p-3 bg-th-overlay/50 rounded-lg">
                                 <FileCheck className="text-cyan-400" size={24} />
                             </div>
                             <div>
-                                <h3 className="text-white font-medium truncate max-w-[300px]" title={probeData?.filename}>{probeData?.filename}</h3>
-                                <div className="flex items-center gap-3 text-xs text-slate-400 mt-1">
-                                    <span className="font-mono bg-slate-800 px-1.5 py-0.5 rounded">{prettyBytes(probeData?.size || 0)}</span>
+                                <h3 className="text-th-text font-medium truncate max-w-[300px]" title={probeData?.filename}>{probeData?.filename}</h3>
+                                <div className="flex items-center gap-3 text-xs text-th-text-s mt-1">
+                                    <span className="font-mono bg-th-raised px-1.5 py-0.5 rounded">{prettyBytes(probeData?.size || 0)}</span>
                                     <span>•</span>
                                     <span className="truncate max-w-[200px]">{url}</span>
                                 </div>
@@ -277,17 +277,17 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
                         </div>
 
                         {/* Schedule Option */}
-                        <div className="bg-slate-800/50 p-3 rounded-xl border border-slate-700 space-y-2">
+                        <div className="bg-th-raised/50 p-3 rounded-xl border border-th-border-s space-y-2">
                             <div className="flex items-center gap-2">
                                 <input
                                     type="checkbox"
                                     id="schedule"
-                                    className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-cyan-500 focus:ring-cyan-500"
+                                    className="w-4 h-4 rounded border-th-border bg-th-raised text-cyan-500 focus:ring-cyan-500"
                                     checked={enableSchedule}
                                     onChange={e => setEnableSchedule(e.target.checked)}
                                 />
-                                <label htmlFor="schedule" className="text-sm font-medium text-slate-300 select-none cursor-pointer flex items-center gap-2">
-                                    <Calendar size={14} className="text-slate-400" />
+                                <label htmlFor="schedule" className="text-sm font-medium text-th-text-s select-none cursor-pointer flex items-center gap-2">
+                                    <Calendar size={14} className="text-th-text-s" />
                                     Start Later
                                 </label>
                             </div>
@@ -296,11 +296,11 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
                                 <div className="pl-6">
                                     <input
                                         type="datetime-local"
-                                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm text-slate-200 focus:outline-none focus:border-cyan-500"
+                                        className="w-full bg-th-surface border border-th-border-s rounded-lg p-2 text-sm text-th-text focus:outline-none focus:border-cyan-500"
                                         value={scheduleTime}
                                         onChange={e => setScheduleTime(e.target.value)}
                                     />
-                                    <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
+                                    <p className="text-[10px] text-th-text-m mt-1 flex items-center gap-1">
                                         <Clock size={10} />
                                         Task will be queued and auto-started at this time.
                                     </p>
@@ -309,14 +309,14 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
                         </div>
 
                         {/* Path Selector */}
-                        <div className="bg-slate-800/50 p-3 rounded-xl border border-slate-700 space-y-2">
-                            <div className="flex justify-between items-center text-xs text-slate-400 uppercase font-semibold tracking-wider">
+                        <div className="bg-th-raised/50 p-3 rounded-xl border border-th-border-s space-y-2">
+                            <div className="flex justify-between items-center text-xs text-th-text-s uppercase font-semibold tracking-wider">
                                 <span>Save Location</span>
                             </div>
 
                             {!showPathInput ? (
                                 <select
-                                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm text-slate-200 focus:outline-none focus:border-cyan-500"
+                                    className="w-full bg-th-surface border border-th-border-s rounded-lg p-2 text-sm text-th-text focus:outline-none focus:border-cyan-500"
                                     value={downloadPath}
                                     onChange={handlePathChange}
                                 >
@@ -332,13 +332,13 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
                                         type="text"
                                         autoFocus
                                         placeholder="C:\Downloads\MyFolder"
-                                        className="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm text-slate-200 focus:outline-none focus:border-cyan-500 font-mono"
+                                        className="flex-1 bg-th-surface border border-th-border-s rounded-lg p-2 text-sm text-th-text focus:outline-none focus:border-cyan-500 font-mono"
                                         value={downloadPath}
                                         onChange={e => setDownloadPath(e.target.value)}
                                     />
                                     <button
                                         onClick={() => setShowPathInput(false)}
-                                        className="px-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-slate-400"
+                                        className="px-3 bg-th-raised hover:bg-th-overlay border border-th-border-s rounded-lg text-th-text-s"
                                     >
                                         Cancel
                                     </button>
@@ -360,7 +360,7 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
                                 <div className="grid grid-cols-2 gap-3">
                                     <button
                                         onClick={() => handleClose()}
-                                        className="py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-medium transition-colors border border-slate-700"
+                                        className="py-3 bg-th-raised hover:bg-th-overlay text-th-text rounded-xl font-medium transition-colors border border-th-border-s"
                                     >
                                         Cancel
                                     </button>
@@ -375,7 +375,7 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
                             )}
 
                             {/* Back to Input */}
-                            <button onClick={() => setStep('input')} className="text-xs text-slate-500 hover:text-slate-300 py-2">
+                            <button onClick={() => setStep('input')} className="text-xs text-th-text-m hover:text-th-text-s py-2">
                                 Change URL
                             </button>
                         </div>

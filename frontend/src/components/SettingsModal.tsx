@@ -30,19 +30,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-            <div className="bg-gray-900 w-full max-w-2xl rounded-2xl border border-gray-800 shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+            <div className="bg-th-surface w-full max-w-2xl rounded-2xl border border-th-border shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
 
                 {/* Header */}
-                <div className="flex justify-between items-center p-6 border-b border-gray-800 bg-gray-900/50">
-                    <h2 className="text-xl font-bold text-white">Settings</h2>
-                    <button onClick={onClose} className="p-1 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white">
+                <div className="flex justify-between items-center p-6 border-b border-th-border bg-th-surface/50">
+                    <h2 className="text-xl font-bold text-th-text">Settings</h2>
+                    <button onClick={onClose} className="p-1 hover:bg-th-raised rounded-full text-th-text-s hover:text-th-text">
                         <X size={20} />
                     </button>
                 </div>
 
                 <div className="flex flex-1 overflow-hidden">
                     {/* Sidebar Tabs */}
-                    <div className="w-48 bg-gray-950 border-r border-gray-800 p-4 space-y-2">
+                    <div className="w-48 bg-th-base border-r border-th-border p-4 space-y-2">
                         <TabButton
                             id="general"
                             label="General"
@@ -87,16 +87,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
                         {activeTab === 'scheduler' && (
                             <div className="space-y-6">
-                                <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
-                                    <p className="text-sm text-yellow-400 mb-2">Schedule Activity</p>
+                                <div className="bg-th-raised/50 p-4 rounded-lg border border-th-border-s">
+                                    <p className="text-sm text-yellow-500 mb-2">Schedule Activity</p>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-xs text-gray-500 mb-1">Start Time</label>
-                                            <input type="time" className="bg-gray-900 border border-gray-700 rounded p-2 text-white w-full" defaultValue="02:00" />
+                                            <label className="block text-xs text-th-text-m mb-1">Start Time</label>
+                                            <input type="time" className="bg-th-surface border border-th-border-s rounded p-2 text-th-text w-full" defaultValue="02:00" />
                                         </div>
                                         <div>
-                                            <label className="block text-xs text-gray-500 mb-1">Stop Time</label>
-                                            <input type="time" className="bg-gray-900 border border-gray-700 rounded p-2 text-white w-full" defaultValue="08:00" />
+                                            <label className="block text-xs text-th-text-m mb-1">Stop Time</label>
+                                            <input type="time" className="bg-th-surface border border-th-border-s rounded p-2 text-th-text w-full" defaultValue="08:00" />
                                         </div>
                                     </div>
                                 </div>
@@ -109,7 +109,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     </div>
                 </div >
 
-                <div className="p-4 border-t border-gray-800 flex justify-end bg-gray-900/50">
+                <div className="p-4 border-t border-th-border flex justify-end bg-th-surface/50">
                     <button
                         onClick={handleSave}
                         className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg font-medium transition-colors"
@@ -125,7 +125,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 const TabButton = ({ id, label, icon: Icon, active, onClick }: any) => (
     <button
         onClick={onClick}
-        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${active ? "bg-gray-800 text-white" : "text-gray-400 hover:text-gray-200"}`}
+        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${active ? "bg-th-raised text-th-text" : "text-th-text-s hover:text-th-text"}`}
     >
         <Icon size={16} />
         {label}

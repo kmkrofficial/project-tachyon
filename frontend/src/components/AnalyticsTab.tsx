@@ -58,7 +58,7 @@ export const AnalyticsTab = () => {
 
     if (!analyticsData) {
         return (
-            <div className="flex h-96 items-center justify-center text-slate-500">
+            <div className="flex h-96 items-center justify-center text-th-text-m">
                 <Activity className="animate-pulse mr-2" /> Loading Analytics...
             </div>
         )
@@ -72,11 +72,11 @@ export const AnalyticsTab = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-[600px] h-[calc(100vh-140px)]">
 
                 {/* 1. Network Activity (Top Left) */}
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col">
+                <div className="bg-th-surface border border-th-border rounded-2xl p-6 flex flex-col">
                     <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-lg font-semibold text-slate-200">Network Activity</h3>
+                        <h3 className="text-lg font-semibold text-th-text">Network Activity</h3>
                         <div className="flex gap-2">
-                            <span className="px-2 py-1 bg-slate-800 rounded text-xs text-slate-400">7 Days</span>
+                            <span className="px-2 py-1 bg-th-raised rounded text-xs text-th-text-s">7 Days</span>
                         </div>
                     </div>
                     <div className="flex-1 w-full min-h-0 relative">
@@ -101,10 +101,10 @@ export const AnalyticsTab = () => {
                                 </AreaChart>
                             </ResponsiveContainer>
                         ) : (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500">
+                            <div className="absolute inset-0 flex flex-col items-center justify-center text-th-text-m">
                                 <Activity className="w-12 h-12 mb-3 opacity-20" />
-                                <p className="text-sm font-medium text-slate-400">Need more data</p>
-                                <p className="text-xs text-slate-600 mt-1">Start downloading to populate the graph</p>
+                                <p className="text-sm font-medium text-th-text-s">Need more data</p>
+                                <p className="text-xs text-th-text-m mt-1">Start downloading to populate the graph</p>
                             </div>
                         )}
                     </div>
@@ -114,10 +114,10 @@ export const AnalyticsTab = () => {
                 <div className="flex flex-col gap-6">
 
                     {/* 2. Library Composition */}
-                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex-1">
-                        <h3 className="text-lg font-semibold text-slate-200 mb-4">Library Composition</h3>
+                    <div className="bg-th-surface border border-th-border rounded-2xl p-6 flex-1">
+                        <h3 className="text-lg font-semibold text-th-text mb-4">Library Composition</h3>
                         {compositionData.length === 0 ? (
-                            <div className="h-full flex flex-col items-center justify-center text-slate-500 text-sm">
+                            <div className="h-full flex flex-col items-center justify-center text-th-text-m text-sm">
                                 <HardDrive size={32} className="mb-2 opacity-50" />
                                 No files tracked yet
                             </div>
@@ -144,9 +144,9 @@ export const AnalyticsTab = () => {
                                         <div key={entry.name} className="flex items-center justify-between text-sm">
                                             <div className="flex items-center gap-2">
                                                 <div className="w-3 h-3 rounded-full" style={{ background: COLORS[index % COLORS.length] }}></div>
-                                                <span className="text-slate-400">{entry.name}</span>
+                                                <span className="text-th-text-s">{entry.name}</span>
                                             </div>
-                                            <span className="text-slate-200 font-mono">{entry.value}</span>
+                                            <span className="text-th-text font-mono">{entry.value}</span>
                                         </div>
                                     ))}
                                 </div>
@@ -155,7 +155,7 @@ export const AnalyticsTab = () => {
                     </div>
 
                     {/* 3. Lifetime Stats */}
-                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 grid grid-cols-2 gap-4">
+                    <div className="bg-th-surface border border-th-border rounded-2xl p-6 grid grid-cols-2 gap-4">
                         <StatBox label="Lifetime Download" value={prettyBytes(analyticsData.total_downloaded || 0)} />
                         <StatBox label="Files Processed" value={(analyticsData.total_files || 0).toString()} />
                         <StatBox label="Disk Used" value={`${analyticsData.disk_usage?.percent.toFixed(1) || 0}%`} />
@@ -168,8 +168,8 @@ export const AnalyticsTab = () => {
 };
 
 const StatBox = ({ label, value }: any) => (
-    <div className="bg-slate-950/50 rounded-xl p-4 flex flex-col justify-center border border-slate-800/50">
-        <span className="text-slate-500 text-xs uppercase font-bold tracking-wider mb-1">{label}</span>
-        <span className="text-2xl font-bold text-slate-200">{value}</span>
+    <div className="bg-th-base/50 rounded-xl p-4 flex flex-col justify-center border border-th-border/50">
+        <span className="text-th-text-m text-xs uppercase font-bold tracking-wider mb-1">{label}</span>
+        <span className="text-2xl font-bold text-th-text">{value}</span>
     </div>
 );

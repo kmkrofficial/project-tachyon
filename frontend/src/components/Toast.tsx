@@ -53,10 +53,10 @@ const ToastItem = ({ toast, onDismiss }: { toast: ToastMessage, onDismiss: () =>
     };
 
     const styles = {
-        success: "bg-slate-900 border-green-500/20 shadow-green-900/10",
-        error: "bg-slate-900 border-red-500/20 shadow-red-900/10",
-        warning: "bg-slate-900 border-yellow-500/20 shadow-yellow-900/10",
-        info: "bg-slate-900 border-blue-500/20 shadow-blue-900/10",
+        success: "bg-th-surface border-green-500/20 shadow-green-900/10",
+        error: "bg-th-surface border-red-500/20 shadow-red-900/10",
+        warning: "bg-th-surface border-yellow-500/20 shadow-yellow-900/10",
+        info: "bg-th-surface border-blue-500/20 shadow-blue-900/10",
     }
 
     return (
@@ -67,10 +67,10 @@ const ToastItem = ({ toast, onDismiss }: { toast: ToastMessage, onDismiss: () =>
         )}>
             <div className="shrink-0 pt-0.5">{icons[toast.type]}</div>
             <div className="flex-1">
-                <h4 className="text-sm font-bold text-slate-200">{toast.title}</h4>
-                <p className="text-xs text-slate-400 mt-1 leading-relaxed">{toast.message}</p>
+                <h4 className="text-sm font-bold text-th-text">{toast.title}</h4>
+                <p className="text-xs text-th-text-s mt-1 leading-relaxed">{toast.message}</p>
             </div>
-            <button onClick={handleDismiss} className="text-slate-500 hover:text-white transition-colors">
+            <button onClick={handleDismiss} className="text-th-text-m hover:text-th-text transition-colors">
                 <X size={16} />
             </button>
         </div>

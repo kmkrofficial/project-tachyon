@@ -83,6 +83,13 @@ func (e *TachyonEngine) processDownloadPart(ctx context.Context, taskID string, 
 			return
 		}
 
+		// Check for stall timeout — report immediately as critical
+		if errors.Is(err, ErrStallTimeout) {
+			e.logger.Error("Download stalled (30s timeout)", "id", taskID, "part", part.ID)
+			errCh <- ErrStallTimeout
+			return
+		}
+
 		// Retry Logic
 		if part.Attempts < 3 {
 			part.Attempts++
@@ -107,6 +114,12 @@ func (e *TachyonEngine) processDownloadPart(ctx context.Context, taskID string, 
 		partDoneCh <- part.ID
 	}
 }
+
+// ErrStallTimeout is returned when a download stalls for too long without receiving data.
+var ErrStallTimeout = fmt.Errorf("download stalled: no data received for 30 seconds")
+
+// stallTimeout is how long a download read may block with zero bytes before being reported as timed out.
+const stallTimeout = 30 * time.Second
 
 // downloadPart downloads a single part of the file
 func (e *TachyonEngine) downloadPart(ctx context.Context, taskID string, urlStr string, file *os.File, part DownloadPart, chunkSize int, headersStr string, cookiesStr string, strictRanges bool) error {
@@ -154,21 +167,39 @@ func (e *TachyonEngine) downloadPart(ctx context.Context, taskID string, urlStr 
 			return err
 		}
 
-		// 2. Network Read
-		n, readErr := resp.Body.Read(buf)
-		if n > 0 {
-			_, writeErr := file.WriteAt(buf[:n], currentOffset)
+		// 2. Network Read — enforce 30-second stall timeout per read
+		type readResult struct {
+			n   int
+			err error
+		}
+		readCh := make(chan readResult, 1)
+		go func() {
+			n, readErr := resp.Body.Read(buf)
+			readCh <- readResult{n, readErr}
+		}()
+
+		var rr readResult
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(stallTimeout):
+			return ErrStallTimeout
+		case rr = <-readCh:
+		}
+
+		if rr.n > 0 {
+			_, writeErr := file.WriteAt(buf[:rr.n], currentOffset)
 			if writeErr != nil {
 				return writeErr
 			}
-			currentOffset += int64(n)
-			bytesReadTotal += int64(n)
+			currentOffset += int64(rr.n)
+			bytesReadTotal += int64(rr.n)
 		}
-		if readErr != nil {
-			if readErr == io.EOF {
+		if rr.err != nil {
+			if rr.err == io.EOF {
 				break
 			}
-			return readErr
+			return rr.err
 		}
 	}
 

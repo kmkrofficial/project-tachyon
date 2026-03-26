@@ -121,13 +121,17 @@ func (h *WailsHandler) WithGroup(name string) slog.Handler {
 	return h
 }
 
-// New creates a new logger with FanoutHandler (JSON in File + Console + Wails)
+// New creates a new logger with FanoutHandler (JSON in File + Console + Wails).
+// If TACHYON_LOG_DIR is set, JSON logs are written there instead of the default AppData location.
 func New(consoleOutput io.Writer) (*slog.Logger, *WailsHandler, error) {
-	appData, err := os.UserConfigDir()
-	if err != nil {
-		return nil, nil, err
+	logDir := os.Getenv("TACHYON_LOG_DIR")
+	if logDir == "" {
+		appData, err := os.UserConfigDir()
+		if err != nil {
+			return nil, nil, err
+		}
+		logDir = filepath.Join(appData, "Tachyon", "logs")
 	}
-	logDir := filepath.Join(appData, "Tachyon", "logs")
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		return nil, nil, err
 	}

@@ -13,6 +13,8 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 import * as AppBinding from '../wailsjs/go/app/App';
+import { useSettingsStore } from './store';
+import { cn } from './utils';
 
 function App() {
     const [activeTab, setActiveTab] = useState("all");
@@ -24,6 +26,9 @@ function App() {
 
     // Activate theme system
     useTheme();
+
+    const sidebarCollapsed = useSettingsStore(s => s.sidebarCollapsed);
+    const setSidebarCollapsed = useSettingsStore(s => s.setSidebarCollapsed);
 
     const addToast = useCallback((type: 'success' | 'error' | 'warning' | 'info', title: string, message: string) => {
         const id = Math.random().toString(36).substr(2, 9);
@@ -103,7 +108,7 @@ function App() {
         });
 
     return (
-        <div className="flex h-screen bg-slate-950 text-slate-200 font-sans overflow-hidden select-none">
+        <div className="flex h-screen bg-th-base text-th-text font-sans overflow-hidden select-none">
 
             <ToastContainer toasts={toasts} removeToast={removeToast} />
 
@@ -111,10 +116,10 @@ function App() {
             <Sidebar activeTab={activeTab} setActiveTab={(tab) => {
                 if (tab === 'settings') setIsSettingsOpen(true);
                 else setActiveTab(tab);
-            }} diskUsage={diskUsage} />
+            }} diskUsage={diskUsage} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} />
 
             {/* Main Layout (Left Margin for Sidebar) */}
-            <div className="flex-1 flex flex-col ml-64 min-w-0 h-full">
+            <div className={cn("flex-1 flex flex-col min-w-0 h-full transition-all duration-300", sidebarCollapsed ? "ml-16" : "ml-64")}>
 
                 {/* Fixed Header */}
                 <Header
@@ -122,11 +127,12 @@ function App() {
                     onPauseAll={() => AppBinding.PauseAllDownloads().catch(console.error)}
                     onResumeAll={() => AppBinding.ResumeAllDownloads().catch(console.error)}
                     globalSpeed={totalSpeed}
+                    sidebarCollapsed={sidebarCollapsed}
                 />
 
                 {/* Scrollable Content Area */}
-                <main className="flex-1 overflow-y-auto pt-16 bg-slate-950 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
-                    <div className="max-w-[1600px] mx-auto p-6 md:p-8">
+                <main className="flex-1 overflow-y-auto pt-16 bg-th-base scrollbar-thin scrollbar-thumb-th-raised scrollbar-track-transparent">
+                    <div className="max-w-[1600px] mx-auto p-4 sm:p-6 md:p-8">
 
                         {/* Dynamic Content */}
                         {activeTab === 'analytics' ? (
@@ -139,21 +145,21 @@ function App() {
                                 {activeTab === 'all' && <DashboardWidgets downloads={Object.values(downloads)} dailyData={dailyData} totalSpeed={totalSpeed} />}
 
                                 {/* Search & Filter Bar */}
-                                <div className="flex items-center gap-3">
+                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                                     <div className="flex-1 relative">
-                                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-th-text-m" />
                                         <input
                                             type="text"
                                             placeholder="Search by filename or URL..."
                                             value={searchQuery}
                                             onChange={e => setSearchQuery(e.target.value)}
-                                            className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-cyan-500 focus:outline-none"
+                                            className="w-full bg-th-surface border border-th-border rounded-lg pl-10 pr-4 py-2 text-sm text-th-text placeholder-th-text-m focus:border-cyan-500 focus:outline-none"
                                         />
                                     </div>
                                     <select
                                         value={statusFilter}
                                         onChange={e => setStatusFilter(e.target.value)}
-                                        className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-cyan-500 focus:outline-none"
+                                        className="bg-th-surface border border-th-border rounded-lg px-3 py-2 text-sm text-th-text focus:border-cyan-500 focus:outline-none"
                                     >
                                         <option value="all">All Status</option>
                                         <option value="downloading">Downloading</option>
@@ -165,7 +171,7 @@ function App() {
                                 </div>
 
                                 {/* Data Grid */}
-                                <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl shadow-black/20">
+                                <div className="bg-th-surface border border-th-border rounded-xl overflow-hidden shadow-2xl shadow-black/10">
                                     <DownloadsTable
                                         data={filteredDownloads}
                                         onOpenFile={openFile}
@@ -216,11 +222,11 @@ const Widget = ({ title, value, subtitle, color }: any) => {
         purple: "border-l-purple-500 from-purple-500/10",
     }
     return (
-        <div className={`bg-gradient-to-r ${colors[color]} to-transparent bg-slate-900 border-l-4 border-y border-r border-slate-800 p-6 rounded-lg shadow-lg`}>
-            <h3 className="text-slate-400 text-sm font-medium uppercase tracking-wider mb-1">{title}</h3>
+        <div className={`bg-gradient-to-r ${colors[color]} to-transparent bg-th-surface border-l-4 border-y border-r border-th-border p-6 rounded-lg shadow-lg`}>
+            <h3 className="text-th-text-s text-sm font-medium uppercase tracking-wider mb-1">{title}</h3>
             <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-bold text-white">{value}</span>
-                <span className={`text-xs font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-300`}>{subtitle}</span>
+                <span className="text-3xl font-bold text-th-text">{value}</span>
+                <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-th-raised text-th-text-s">{subtitle}</span>
             </div>
         </div>
     )

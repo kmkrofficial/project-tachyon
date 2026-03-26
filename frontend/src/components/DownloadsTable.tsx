@@ -48,25 +48,25 @@ const RowActions = memo(({ id, url, status, onPause, onResume, onStop, onRetry, 
     return (
         <div className="flex items-center justify-end gap-1 opacity-100 transition-opacity">
             {isPending && (
-                <div className="flex gap-0.5 mr-2 bg-slate-800 rounded p-0.5">
-                    <button onClick={() => onReorder(id, "first")} className="p-1 hover:text-white text-slate-400 hover:bg-slate-700 rounded" title="Move to Top"><ChevronsUp size={14} /></button>
-                    <button onClick={() => onReorder(id, "prev")} className="p-1 hover:text-white text-slate-400 hover:bg-slate-700 rounded" title="Move Up"><ChevronUp size={14} /></button>
-                    <button onClick={() => onReorder(id, "next")} className="p-1 hover:text-white text-slate-400 hover:bg-slate-700 rounded" title="Move Down"><ChevronDown size={14} /></button>
-                    <button onClick={() => onReorder(id, "last")} className="p-1 hover:text-white text-slate-400 hover:bg-slate-700 rounded" title="Move to Bottom"><ChevronsDown size={14} /></button>
+                <div className="hidden lg:flex gap-0.5 mr-2 bg-th-raised rounded p-0.5">
+                    <button onClick={() => onReorder(id, "first")} className="p-1 hover:text-th-text text-th-text-s hover:bg-th-overlay rounded" title="Move to Top"><ChevronsUp size={14} /></button>
+                    <button onClick={() => onReorder(id, "prev")} className="p-1 hover:text-th-text text-th-text-s hover:bg-th-overlay rounded" title="Move Up"><ChevronUp size={14} /></button>
+                    <button onClick={() => onReorder(id, "next")} className="p-1 hover:text-th-text text-th-text-s hover:bg-th-overlay rounded" title="Move Down"><ChevronDown size={14} /></button>
+                    <button onClick={() => onReorder(id, "last")} className="p-1 hover:text-th-text text-th-text-s hover:bg-th-overlay rounded" title="Move to Bottom"><ChevronsDown size={14} /></button>
                 </div>
             )}
 
             {(isDownloading || isPaused || isPending) && (
                 <>
                     <button
-                        className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white transition-colors"
+                        className="p-2 hover:bg-th-overlay rounded-lg text-th-text-s hover:text-th-text transition-colors"
                         title={isPaused ? "Resume" : "Pause"}
                         onClick={() => isPaused ? onResume(id) : onPause(id)}
                     >
                         {isPaused ? <Play size={16} /> : <Pause size={16} />}
                     </button>
                     <button
-                        className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white transition-colors"
+                        className="p-2 hover:bg-th-overlay rounded-lg text-th-text-s hover:text-th-text transition-colors"
                         title="Stop / Cancel"
                         onClick={() => onStop(id)}
                     >
@@ -78,7 +78,7 @@ const RowActions = memo(({ id, url, status, onPause, onResume, onStop, onRetry, 
             {/* Retry button for Error, Stopped, or Completed but Missing File */}
             {(isError || isStopped || (isCompleted && !fileExists)) && (
                 <button
-                    className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white transition-colors"
+                    className="p-2 hover:bg-th-overlay rounded-lg text-th-text-s hover:text-th-text transition-colors"
                     title="Re-download"
                     onClick={() => onRetry(url)}
                 >
@@ -88,7 +88,7 @@ const RowActions = memo(({ id, url, status, onPause, onResume, onStop, onRetry, 
 
             {isCompleted && fileExists && (
                 <button
-                    className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white transition-colors"
+                    className="p-2 hover:bg-th-overlay rounded-lg text-th-text-s hover:text-th-text transition-colors"
                     onClick={() => onOpenFolder(id)}
                     title="Show in Folder"
                 >
@@ -97,7 +97,7 @@ const RowActions = memo(({ id, url, status, onPause, onResume, onStop, onRetry, 
             )}
 
             <button
-                className="p-2 hover:bg-red-900/50 rounded-lg text-slate-400 hover:text-red-400 transition-colors"
+                className="p-2 hover:bg-red-900/50 rounded-lg text-th-text-s hover:text-red-400 transition-colors"
                 title="Delete"
                 onClick={() => onDelete(id)}
             >
@@ -181,8 +181,9 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
     const columns = useMemo(() => [
         columnHelper.accessor('queue_order', {
             header: '#',
-            cell: info => <span className="text-slate-500 font-mono text-xs">{info.getValue() || '-'}</span>,
+            cell: info => <span className="text-th-text-m font-mono text-xs">{info.getValue() || '-'}</span>,
             size: 40,
+            meta: { className: 'hidden lg:table-cell' },
         }),
         columnHelper.accessor('filename', {
             header: 'File Name',
@@ -193,17 +194,17 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
                 if (['zip', 'rar', '7z'].includes(ext || '')) Icon = FileArchive;
 
                 return (
-                    <div className="flex items-center gap-4 py-2">
-                        <div className="p-3 bg-slate-800 rounded-xl border border-slate-700/50">
-                            <Icon size={20} className="text-slate-400 group-hover:text-cyan-400 transition-colors" />
+                    <div className="flex items-center gap-3 py-2 min-w-0">
+                        <div className="p-2 sm:p-3 bg-th-raised rounded-xl border border-th-border-s/50 shrink-0">
+                            <Icon size={20} className="text-th-text-s group-hover:text-cyan-500 transition-colors" />
                         </div>
-                        <div className="flex flex-col">
-                            <span className="font-semibold text-slate-200 group-hover:text-white transition-colors">{info.getValue()}</span>
+                        <div className="flex flex-col min-w-0">
+                            <span className="font-semibold text-th-text group-hover:text-cyan-500 transition-colors truncate">{info.getValue()}</span>
                             <div className="flex items-center gap-2">
-                                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider bg-slate-800/50 px-1.5 rounded border border-slate-700/50">
+                                <span className="text-[10px] uppercase font-bold text-th-text-m tracking-wider bg-th-raised/50 px-1.5 rounded border border-th-border-s/50 shrink-0">
                                     {(ext || 'BIN').toUpperCase()}
                                 </span>
-                                <span className="text-xs text-slate-500 truncate max-w-[200px]">{info.row.original.url}</span>
+                                <span className="text-xs text-th-text-m truncate max-w-[200px] hidden sm:inline">{info.row.original.url}</span>
                             </div>
                         </div>
                     </div>
@@ -215,18 +216,15 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
             cell: info => {
                 const s = info.getValue();
                 const errorMsg = info.row.original.error;
-                const fileExists = info.row.original.file_exists !== false; // Default to true if undefined? No, default true is safer to avoid flashing
-                // file_exists is boolean | undefined. If undefined (pending/downloading), treat as valid.
-                // If status is completed and file_exists is false, show warning.
 
                 const isMissing = s === 'completed' && info.row.original.file_exists === false;
 
                 const colors: any = {
-                    downloading: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-                    completed: "bg-green-500/10 text-green-400 border-green-500/20",
-                    error: "bg-red-500/10 text-red-400 border-red-500/20 cursor-pointer hover:bg-red-500/20",
-                    paused: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-                    pending: "bg-slate-500/10 text-slate-400 border-slate-500/20"
+                    downloading: "bg-blue-500/10 text-blue-500 border-blue-500/20",
+                    completed: "bg-green-500/10 text-green-500 border-green-500/20",
+                    error: "bg-red-500/10 text-red-500 border-red-500/20 cursor-pointer hover:bg-red-500/20",
+                    paused: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
+                    pending: "bg-th-raised text-th-text-s border-th-border"
                 };
 
                 const handleErrorClick = () => {
@@ -241,7 +239,7 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
                             className={cn(
                                 "px-2.5 py-1 rounded-md text-xs font-semibold border capitalize flex w-fit items-center gap-1.5",
                                 colors[s] || colors.pending,
-                                isMissing ? "opacity-50" : "" // Dim the completed badge if missing
+                                isMissing ? "opacity-50" : ""
                             )}
                             onClick={s === 'error' ? handleErrorClick : undefined}
                             title={s === 'error' && errorMsg ? `Click to see error: ${errorMsg}` : undefined}
@@ -252,7 +250,7 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
                         </span>
                         {isMissing && (
                             <span
-                                className="px-2 py-0.5 rounded text-[10px] font-bold border border-red-500/30 bg-red-500/10 text-red-400 uppercase tracking-wide flex items-center gap-1"
+                                className="hidden sm:flex px-2 py-0.5 rounded text-[10px] font-bold border border-red-500/30 bg-red-500/10 text-red-400 uppercase tracking-wide items-center gap-1"
                                 title="File moved or deleted"
                             >
                                 <AlertTriangle size={10} />
@@ -268,11 +266,11 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
             cell: info => (
                 <div className="w-full max-w-[140px]">
                     <div className="flex justify-between text-xs mb-1.5">
-                        <span className="text-slate-400">{info.getValue().toFixed(1)}%</span>
+                        <span className="text-th-text-s">{info.getValue().toFixed(1)}%</span>
                     </div>
                     {/* Dual Layer Bar */}
-                    <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden relative">
-                        <div className="absolute inset-0 bg-slate-700/30 w-full" /> {/* Background Track */}
+                    <div className="h-1.5 w-full bg-th-raised rounded-full overflow-hidden relative">
+                        <div className="absolute inset-0 bg-th-overlay/30 w-full" />
                         <div
                             className={cn(
                                 "h-full rounded-full transition-all duration-500 ease-out relative z-10",
@@ -287,13 +285,15 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
                         </div>
                     </div>
                 </div>
-            )
+            ),
+            meta: { className: 'hidden sm:table-cell' },
         }),
         columnHelper.accessor('speed_MBs', {
             header: 'Speed',
             cell: info => info.row.original.status === 'downloading' ?
-                <span className="font-mono text-cyan-400 font-medium">{(info.getValue() || 0).toFixed(1)} MB/s</span> :
-                <span className="text-slate-600">-</span>
+                <span className="font-mono text-cyan-500 font-medium">{(info.getValue() || 0).toFixed(1)} MB/s</span> :
+                <span className="text-th-text-m">-</span>,
+            meta: { className: 'hidden md:table-cell' },
         }),
         columnHelper.accessor('size', {
             header: 'Size / ETA',
@@ -319,11 +319,12 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
 
                 return (
                     <div className="flex flex-col">
-                        <span className="text-slate-300 font-medium text-sm">{prettyBytes(info.getValue() || 0)}</span>
-                        <span className="text-slate-500 text-xs font-mono">{etaString}</span>
+                        <span className="text-th-text font-medium text-sm">{prettyBytes(info.getValue() || 0)}</span>
+                        <span className="text-th-text-m text-xs font-mono">{etaString}</span>
                     </div>
                 );
-            }
+            },
+            meta: { className: 'hidden md:table-cell' },
         }),
         columnHelper.display({
             id: 'actions',
@@ -368,13 +369,20 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
 
     return (
         <>
-            <div className="w-full">
-                <table className="w-full text-left border-collapse">
-                    <thead className="bg-slate-900/95 sticky top-0 z-30 backdrop-blur-sm border-b border-slate-800">
+            <div className="w-full overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[600px]">
+                    <thead className="bg-th-surface/95 sticky top-0 z-30 backdrop-blur-sm border-b border-th-border">
                         {table.getHeaderGroups().map(headerGroup => (
                             <tr key={headerGroup.id}>
                                 {headerGroup.headers.map(header => (
-                                    <th key={header.id} className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer hover:text-slate-300 transition-colors" onClick={header.column.getToggleSortingHandler()}>
+                                    <th
+                                        key={header.id}
+                                        className={cn(
+                                            "px-4 sm:px-6 py-4 text-xs font-bold text-th-text-m uppercase tracking-wider cursor-pointer hover:text-th-text-s transition-colors",
+                                            (header.column.columnDef.meta as any)?.className
+                                        )}
+                                        onClick={header.column.getToggleSortingHandler()}
+                                    >
                                         {flexRender(header.column.columnDef.header, header.getContext())}
                                         {{
                                             asc: ' ▲',
@@ -385,16 +393,22 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
                             </tr>
                         ))}
                     </thead>
-                    <tbody className="divide-y divide-slate-800">
+                    <tbody className="divide-y divide-th-border">
                         {table.getRowModel().rows.map(row => (
                             <tr
                                 key={row.id}
-                                className="group bg-slate-900 even:bg-slate-800/30 hover:bg-slate-800 transition-colors cursor-default"
+                                className="group bg-th-surface even:bg-th-raised/30 hover:bg-th-raised transition-colors cursor-default"
                                 onContextMenu={(e) => handleContextMenu(e, row.original.id)}
                                 onDoubleClick={() => row.original.status === 'completed' && onOpenFile(row.original.id)}
                             >
                                 {row.getVisibleCells().map(cell => (
-                                    <td key={cell.id} className="px-6 py-3 whitespace-nowrap">
+                                    <td
+                                        key={cell.id}
+                                        className={cn(
+                                            "px-4 sm:px-6 py-3 whitespace-nowrap",
+                                            (cell.column.columnDef.meta as any)?.className
+                                        )}
+                                    >
                                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                                     </td>
                                 ))}
@@ -404,8 +418,8 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
                 </table>
 
                 {data.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-24 text-slate-600">
-                        <div className="w-16 h-16 bg-slate-800/50 rounded-full flex items-center justify-center mb-4">
+                    <div className="flex flex-col items-center justify-center py-24 text-th-text-m">
+                        <div className="w-16 h-16 bg-th-raised/50 rounded-full flex items-center justify-center mb-4">
                             <File size={32} className="opacity-50" />
                         </div>
                         <p className="font-medium text-lg">No downloads yet</p>
@@ -417,19 +431,19 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
             {/* Delete Confirmation Modal */}
             {deleteConfirmId && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                    <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 w-[400px] shadow-2xl">
-                        <h3 className="text-xl font-bold text-slate-200 mb-2">Delete Download</h3>
-                        <p className="text-slate-400 mb-6">Are you sure you want to delete this task?</p>
+                    <div className="bg-th-surface border border-th-overlay rounded-xl p-6 w-[400px] shadow-2xl">
+                        <h3 className="text-xl font-bold text-th-text mb-2">Delete Download</h3>
+                        <p className="text-th-text-s mb-6">Are you sure you want to delete this task?</p>
 
-                        <div className="flex items-center gap-2 mb-6 p-3 bg-slate-800 rounded-lg border border-slate-700">
+                        <div className="flex items-center gap-2 mb-6 p-3 bg-th-raised rounded-lg border border-th-border">
                             <input
                                 type="checkbox"
                                 id="deleteFile"
                                 checked={deleteFile}
                                 onChange={e => setDeleteFile(e.target.checked)}
-                                className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-cyan-600 focus:ring-cyan-500"
+                                className="w-4 h-4 rounded border-th-border bg-th-raised text-cyan-600 focus:ring-cyan-500"
                             />
-                            <label htmlFor="deleteFile" className="text-sm text-slate-300 select-none cursor-pointer">
+                            <label htmlFor="deleteFile" className="text-sm text-th-text-s select-none cursor-pointer">
                                 Delete file from disk also?
                             </label>
                         </div>
@@ -437,7 +451,7 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
                         <div className="flex justify-end gap-3">
                             <button
                                 onClick={() => setDeleteConfirmId(null)}
-                                className="px-4 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors bg-transparent"
+                                className="px-4 py-2 rounded-lg text-th-text-s hover:bg-th-raised hover:text-th-text transition-colors bg-transparent"
                             >
                                 Cancel
                             </button>

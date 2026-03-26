@@ -8,8 +8,12 @@ import (
 	"runtime"
 )
 
-// GetDefaultDownloadPath returns the user's Downloads directory
+// GetDefaultDownloadPath returns the user's Downloads directory.
+// In test mode (TACHYON_DOWNLOAD_DIR set), returns the test directory instead.
 func GetDefaultDownloadPath() (string, error) {
+	if dir := os.Getenv("TACHYON_DOWNLOAD_DIR"); dir != "" {
+		return dir, nil
+	}
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return "", err

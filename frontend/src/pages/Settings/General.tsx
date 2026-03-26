@@ -33,27 +33,27 @@ export const GeneralSettings: React.FC = () => {
         <div className="space-y-8">
             {/* Standard Settings */}
             <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">Max Concurrent Downloads: {settings.maxConcurrentDownloads}</label>
+                <label className="block text-sm font-medium text-th-text-s mb-2">Max Concurrent Downloads: {settings.maxConcurrentDownloads}</label>
                 <input
                     type="range" min="1" max="10"
                     value={settings.maxConcurrentDownloads}
                     onChange={(e) => settings.setMaxConcurrentDownloads(parseInt(e.target.value))}
-                    className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                    className="w-full h-2 bg-th-overlay rounded-lg appearance-none cursor-pointer accent-blue-500"
                 />
             </div>
 
             <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">Threads per Download: {settings.threadsPerDownload}</label>
+                <label className="block text-sm font-medium text-th-text-s mb-2">Threads per Download: {settings.threadsPerDownload}</label>
                 <input
                     type="range" min="1" max="32"
                     value={settings.threadsPerDownload}
                     onChange={(e) => settings.setThreadsPerDownload(parseInt(e.target.value))}
-                    className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                    className="w-full h-2 bg-th-overlay rounded-lg appearance-none cursor-pointer accent-purple-500"
                 />
             </div>
 
             <div className="flex items-center justify-between opacity-50 pointer-events-none">
-                <span className="text-gray-300">File Categorization (Always On)</span>
+                <span className="text-th-text-s">File Categorization (Always On)</span>
                 <div className="w-10 h-5 bg-blue-600 rounded-full relative">
                     <div className="absolute right-1 top-1 w-3 h-3 bg-white rounded-full"></div>
                 </div>
@@ -61,7 +61,7 @@ export const GeneralSettings: React.FC = () => {
 
             {/* Theme Selector */}
             <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">Theme</label>
+                <label className="block text-sm font-medium text-th-text-s mb-2">Theme</label>
                 <div className="flex gap-2">
                     {([
                         { value: 'dark' as const, label: 'Dark', Icon: Moon },
@@ -74,7 +74,7 @@ export const GeneralSettings: React.FC = () => {
                             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
                                 settings.theme === value
                                     ? 'bg-blue-600/20 border-blue-500 text-blue-400'
-                                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-gray-200'
+                                    : 'bg-th-raised border-th-border text-th-text-s hover:text-th-text'
                             }`}
                         >
                             <Icon size={16} />
@@ -84,7 +84,7 @@ export const GeneralSettings: React.FC = () => {
                 </div>
             </div>
 
-            <hr className="border-slate-800" />
+            <hr className="border-th-border" />
 
             {/* Danger Zone */}
             <div className="space-y-4">
@@ -93,11 +93,11 @@ export const GeneralSettings: React.FC = () => {
                     Danger Zone
                 </h3>
 
-                <div className="bg-slate-900/50 border border-red-500/20 rounded-lg p-4">
+                <div className="bg-th-surface/50 border border-red-500/20 rounded-lg p-4">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h4 className="text-slate-200 font-medium">Factory Reset</h4>
-                            <p className="text-sm text-slate-500 mt-1">
+                            <h4 className="text-th-text font-medium">Factory Reset</h4>
+                            <p className="text-sm text-th-text-m mt-1">
                                 Wipes all download history, settings, and local data. This action cannot be undone.
                             </p>
                         </div>

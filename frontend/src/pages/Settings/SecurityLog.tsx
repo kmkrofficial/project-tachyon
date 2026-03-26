@@ -72,7 +72,7 @@ export const SecurityLog: React.FC = () => {
             case 'clean': return <CheckCircle size={14} className="text-green-500" />;
             case 'threat': return <AlertTriangle size={14} className="text-red-500" />;
             case 'error': return <XCircle size={14} className="text-yellow-500" />;
-            default: return <Scan size={14} className="text-gray-500" />;
+            default: return <Scan size={14} className="text-th-text-m" />;
         }
     };
 
@@ -81,25 +81,25 @@ export const SecurityLog: React.FC = () => {
             <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
                     <Shield className="text-cyan-500" size={20} />
-                    <h3 className="text-lg font-medium text-white">Security Dashboard</h3>
+                    <h3 className="text-lg font-medium text-th-text">Security Dashboard</h3>
                 </div>
                 <div className="flex items-center gap-2">
                     {/* Tab buttons */}
                     <button
                         onClick={() => setActiveTab('audit')}
-                        className={`px-3 py-1 rounded-lg text-sm transition-colors ${activeTab === 'audit' ? 'bg-cyan-900/50 text-cyan-400' : 'bg-gray-800 text-gray-400'}`}
+                        className={`px-3 py-1 rounded-lg text-sm transition-colors ${activeTab === 'audit' ? 'bg-cyan-900/50 text-cyan-400' : 'bg-th-raised text-th-text-s'}`}
                     >
                         Audit Log
                     </button>
                     <button
                         onClick={() => setActiveTab('scans')}
-                        className={`px-3 py-1 rounded-lg text-sm transition-colors ${activeTab === 'scans' ? 'bg-cyan-900/50 text-cyan-400' : 'bg-gray-800 text-gray-400'}`}
+                        className={`px-3 py-1 rounded-lg text-sm transition-colors ${activeTab === 'scans' ? 'bg-cyan-900/50 text-cyan-400' : 'bg-th-raised text-th-text-s'}`}
                     >
                         Scan Results
                     </button>
                     <button
                         onClick={() => setPolling(!polling)}
-                        className={`p-2 rounded-lg transition-colors ${polling ? 'bg-cyan-900/30 text-cyan-400' : 'bg-gray-800 text-gray-400'}`}
+                        className={`p-2 rounded-lg transition-colors ${polling ? 'bg-cyan-900/30 text-cyan-400' : 'bg-th-raised text-th-text-s'}`}
                         title={polling ? "Polling Active" : "Polling Paused"}
                     >
                         <RefreshCw size={16} className={polling ? "animate-spin-slow" : ""} />
@@ -107,23 +107,23 @@ export const SecurityLog: React.FC = () => {
                 </div>
             </div>
 
-            <div className="bg-black/50 border border-gray-800 rounded-lg flex-1 overflow-hidden flex flex-col font-mono text-xs">
+            <div className="bg-th-base/50 border border-th-border rounded-lg flex-1 overflow-hidden flex flex-col font-mono text-xs">
                 {activeTab === 'audit' ? (
                     <>
-                        <div className="flex bg-gray-900/80 p-2 border-b border-gray-800 text-gray-500 font-bold uppercase tracking-wider">
+                        <div className="flex bg-th-surface/80 p-2 border-b border-th-border text-th-text-m font-bold uppercase tracking-wider">
                             <div className="w-24">Time</div>
                             <div className="w-24">IP</div>
                             <div className="w-16">Status</div>
                             <div className="flex-1">Action</div>
                         </div>
 
-                        <div ref={scrollRef} className="overflow-y-auto flex-1 p-2 space-y-1 scrollbar-thin scrollbar-thumb-gray-700">
+                        <div ref={scrollRef} className="overflow-y-auto flex-1 p-2 space-y-1 scrollbar-thin scrollbar-thumb-th-overlay">
                             {logs.length === 0 ? (
-                                <div className="text-gray-600 text-center py-8 italic">No audit logs available</div>
+                                <div className="text-th-text-m text-center py-8 italic">No audit logs available</div>
                             ) : (
                                 logs.map((log) => (
-                                    <div key={log.id} className="flex gap-2 hover:bg-white/5 p-1 rounded transition-colors group">
-                                        <div className="w-24 text-gray-500 shrink-0">
+                                    <div key={log.id} className="flex gap-2 hover:bg-th-raised/50 p-1 rounded transition-colors group">
+                                        <div className="w-24 text-th-text-m shrink-0">
                                             {new Date(log.timestamp).toLocaleTimeString()}
                                         </div>
                                         <div className="w-24 text-blue-400 shrink-0 truncate" title={log.source_ip}>
@@ -134,9 +134,9 @@ export const SecurityLog: React.FC = () => {
                                             }`}>
                                             {log.status}
                                         </div>
-                                        <div className="flex-1 text-gray-300 break-all">
+                                        <div className="flex-1 text-th-text-s break-all">
                                             <span className="text-purple-400 mr-2">[{log.action}]</span>
-                                            <span className="text-gray-400">{log.details}</span>
+                                            <span className="text-th-text-s">{log.details}</span>
                                         </div>
                                     </div>
                                 ))
@@ -145,20 +145,20 @@ export const SecurityLog: React.FC = () => {
                     </>
                 ) : (
                     <>
-                        <div className="flex bg-gray-900/80 p-2 border-b border-gray-800 text-gray-500 font-bold uppercase tracking-wider">
+                        <div className="flex bg-th-surface/80 p-2 border-b border-th-border text-th-text-m font-bold uppercase tracking-wider">
                             <div className="w-20">Time</div>
                             <div className="w-16">Status</div>
                             <div className="flex-1">File</div>
                             <div className="w-32">Threat</div>
                         </div>
 
-                        <div className="overflow-y-auto flex-1 p-2 space-y-1 scrollbar-thin scrollbar-thumb-gray-700">
+                        <div className="overflow-y-auto flex-1 p-2 space-y-1 scrollbar-thin scrollbar-thumb-th-overlay">
                             {scanResults.length === 0 ? (
-                                <div className="text-gray-600 text-center py-8 italic">No scan results yet. Download files to see scan results.</div>
+                                <div className="text-th-text-m text-center py-8 italic">No scan results yet. Download files to see scan results.</div>
                             ) : (
                                 scanResults.map((scan, idx) => (
-                                    <div key={idx} className="flex gap-2 hover:bg-white/5 p-1 rounded transition-colors group items-center">
-                                        <div className="w-20 text-gray-500 shrink-0">
+                                    <div key={idx} className="flex gap-2 hover:bg-th-raised/50 p-1 rounded transition-colors group items-center">
+                                        <div className="w-20 text-th-text-m shrink-0">
                                             {new Date(scan.timestamp).toLocaleTimeString()}
                                         </div>
                                         <div className="w-16 shrink-0 flex items-center gap-1">
@@ -169,7 +169,7 @@ export const SecurityLog: React.FC = () => {
                                                 {scan.status}
                                             </span>
                                         </div>
-                                        <div className="flex-1 text-gray-300 truncate" title={scan.file}>
+                                        <div className="flex-1 text-th-text-s truncate" title={scan.file}>
                                             {scan.file.split(/[/\\]/).pop()}
                                         </div>
                                         <div className="w-32 text-red-400 truncate">

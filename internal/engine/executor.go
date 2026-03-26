@@ -309,6 +309,25 @@ Loop:
 				}
 				return
 			}
+
+			// Check for stall timeout — save checkpoint and fail
+			if errors.Is(err, ErrStallTimeout) {
+				metaSnap := e.serializeState(task, completedParts, partPlan)
+				e.storage.SaveTaskAtomic(task.ID, func(t *storage.DownloadTask) {
+					t.Status = "error"
+					t.MetaJSON = metaSnap
+				})
+				e.failTask(task, "Download timed out: server not responding for 30 seconds")
+				cancel()
+				if e.ctx != nil {
+					runtime.EventsEmit(e.ctx, "download:timeout", map[string]interface{}{
+						"id":     task.ID,
+						"reason": "Server not responding for 30 seconds",
+					})
+				}
+				return
+			}
+
 			// Critical error reported
 			e.failTask(task, fmt.Sprintf("Critical error: %v", err))
 			cancel()
