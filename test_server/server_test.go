@@ -260,9 +260,10 @@ func TestFlakyEndpoint_SomeRequestsSucceed(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if resp.StatusCode == 200 {
+		switch resp.StatusCode {
+		case 200:
 			successes++
-		} else if resp.StatusCode == 500 {
+		case 500:
 			failures++
 		}
 		resp.Body.Close()
