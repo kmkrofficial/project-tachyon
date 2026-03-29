@@ -6,6 +6,7 @@ import { DownloadsTable } from './components/DownloadsTable';
 import { AddURLModal } from './components/AddURLModal';
 import { SettingsModal } from './components/SettingsModal';
 import { SpeedTestTab } from './components/SpeedTestTab';
+import { ClearDownloadsModal } from './components/ClearDownloadsModal';
 import { StatusBar } from './components/StatusBar';
 import { useTachyon } from './hooks/useTachyon';
 import { useTheme } from './hooks/useTheme';
@@ -29,11 +30,21 @@ function App() {
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
     const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [isClearOpen, setIsClearOpen] = useState(false);
 
     // Activate theme system
     useTheme();
 
     const speedTest = useSpeedTest();
+
+    // Sync persisted settings to backend on startup
+    const globalSpeedLimit = useSettingsStore(s => s.globalSpeedLimit);
+    const maxConcurrentDownloads = useSettingsStore(s => s.maxConcurrentDownloads);
+    useEffect(() => {
+        AppBinding.SetGlobalSpeedLimit?.(globalSpeedLimit);
+        AppBinding.SetMaxConcurrentDownloads?.(maxConcurrentDownloads);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const sidebarCollapsed = useSettingsStore(s => s.sidebarCollapsed);
     const setSidebarCollapsed = useSettingsStore(s => s.setSidebarCollapsed);
@@ -133,12 +144,43 @@ function App() {
         };
     }, [isModalOpen, isValidUrl, quickDownload, downloadPath, addDownload]);
 
+    const handleClear = useCallback(async (action: 'completed' | 'failed' | 'all' | 'all-with-files') => {
+        const all = Object.values(downloads);
+        const isScheduler = activeTab === 'scheduler';
+        // Scope to current page: scheduler sees only scheduled, dashboard sees non-scheduled
+        const pageDownloads = isScheduler
+            ? all.filter(d => d.status === 'scheduled')
+            : all.filter(d => d.status !== 'scheduled');
+        let targets: typeof all = [];
+        const deleteFile = action === 'all-with-files';
+
+        switch (action) {
+            case 'completed':
+                targets = pageDownloads.filter(d => d.status === 'completed');
+                break;
+            case 'failed':
+                targets = pageDownloads.filter(d => d.status === 'error');
+                break;
+            case 'all':
+            case 'all-with-files':
+                targets = pageDownloads;
+                break;
+        }
+
+        for (const d of targets) {
+            try { await AppBinding.DeleteDownload(d.id, deleteFile); } catch {}
+        }
+        addToast('success', 'Cleared', `Removed ${targets.length} download${targets.length !== 1 ? 's' : ''}.`);
+    }, [downloads, activeTab, addToast]);
+
     // Filter downloads based on active tab, search, status and category
     const allDownloads = Object.values(downloads);
     const filteredDownloads = allDownloads
         .filter(item => {
             // Tab filter
-            if (activeTab !== "all" && activeTab !== "settings") {
+            if (activeTab === 'scheduler') {
+                if (item.status !== 'scheduled') return false;
+            } else if (activeTab !== "all" && activeTab !== "settings") {
                 if (item.status !== activeTab) return false;
             }
             // Status sidebar filter
@@ -205,6 +247,7 @@ function App() {
                     onAddDownload={() => setIsModalOpen(true)}
                     onPauseAll={() => AppBinding.PauseAllDownloads().catch(console.error)}
                     onResumeAll={() => AppBinding.ResumeAllDownloads().catch(console.error)}
+                    onClear={() => setIsClearOpen(true)}
                     sidebarCollapsed={sidebarCollapsed}
                 />
 
@@ -216,6 +259,58 @@ function App() {
                             <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-th-raised scrollbar-track-transparent">
                                 <div className="max-w-[1600px] mx-auto p-4 sm:p-6 md:p-8">
                                     <SpeedTestTab state={speedTest} />
+                                </div>
+                            </div>
+                        ) : activeTab === 'scheduler' ? (
+                            <div className="flex-1 min-h-0 flex flex-col px-5 pt-4 pb-3">
+                                {/* Filter Bar: Search + Dropdowns */}
+                                <div className="flex items-center gap-2 mb-2.5 shrink-0">
+                                    <div className="relative flex-1">
+                                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-th-text-m" />
+                                        <input
+                                            type="text"
+                                            placeholder="Search scheduled downloads..."
+                                            value={searchQuery}
+                                            onChange={e => setSearchQuery(e.target.value)}
+                                            className="w-full bg-th-surface border border-th-border rounded-lg pl-10 pr-4 py-1.5 text-sm text-th-text placeholder-th-text-m focus:border-th-accent focus:outline-none"
+                                        />
+                                    </div>
+                                    <Dropdown
+                                        value={statusFilter}
+                                        onChange={v => setStatusFilter(v as StatusFilter)}
+                                        options={[
+                                            { value: 'all', label: 'All Status' },
+                                            { value: 'scheduled', label: 'Scheduled' },
+                                            { value: 'downloading', label: 'Active' },
+                                            { value: 'completed', label: 'Completed' },
+                                            { value: 'paused', label: 'Paused' },
+                                            { value: 'error', label: 'Failed' },
+                                        ]}
+                                    />
+                                    <Dropdown
+                                        value={categoryFilter}
+                                        onChange={v => setCategoryFilter(v as CategoryFilter)}
+                                        options={[
+                                            { value: 'all', label: 'All Types' },
+                                            { value: 'video', label: 'Video' },
+                                            { value: 'compressed', label: 'Archives' },
+                                            { value: 'document', label: 'Documents' },
+                                            { value: 'program', label: 'Programs' },
+                                            { value: 'other', label: 'Other' },
+                                        ]}
+                                    />
+                                </div>
+
+                                <div className="flex-1 min-h-0 bg-th-surface border border-th-border rounded-xl overflow-hidden shadow-lg shadow-black/5 flex flex-col">
+                                    <DownloadsTable
+                                        data={filteredDownloads}
+                                        onOpenFile={openFile}
+                                        onOpenFolder={openFolder}
+                                        onReorder={reorderDownload}
+                                        addToast={addToast}
+                                        selectedIds={selectedIds}
+                                        onSelectionChange={setSelectedIds}
+                                    />
                                 </div>
                             </div>
                         ) : (
@@ -292,6 +387,13 @@ function App() {
             <SettingsModal
                 isOpen={isSettingsOpen}
                 onClose={() => setIsSettingsOpen(false)}
+            />
+
+            <ClearDownloadsModal
+                isOpen={isClearOpen}
+                onClose={() => setIsClearOpen(false)}
+                onClear={handleClear}
+                context={activeTab === 'scheduler' ? 'scheduler' : 'dashboard'}
             />
         </div>
     );
