@@ -18,8 +18,8 @@ import (
 
 // Configurable constants
 const (
-	DownloadChunkSize = 1 * 1024 * 1024 // 1MB Part Size
-	BufferSize        = 256 * 1024      // 256KB Buffer — reduces syscall overhead on fast links
+	DownloadChunkSize = 4 * 1024 * 1024 // 4MB Part Size — fewer HTTP requests, better TCP ramp-up
+	BufferSize        = 1 * 1024 * 1024 // 1MB Buffer — fewer read loop iterations on fast links
 	MaxWorkersPerTask = 24              // Aggressive upper bound; dynamic tuning chooses active count
 	GenericUserAgent  = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36"
 

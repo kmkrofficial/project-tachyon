@@ -15,35 +15,35 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+// activeDownloadInfo stores control structures for a running download
+type activeDownloadInfo struct {
+	Cancel context.CancelFunc
+	Wait   *sync.WaitGroup
+}
+
 // queueWorker is the background worker that dispatches tasks from the queue
 func (e *TachyonEngine) queueWorker() {
 	for {
-		// Update Concurrency Snapshot
 		e.workerMutex.Lock()
 		active := e.runningDownloads
 		max := e.maxConcurrent
 		e.workerMutex.Unlock()
 
-		// Smart Schedule Dispatch
 		task := e.scheduler.GetNextTask(active, max)
 
 		if task == nil {
-			// Wait for new tasks or slot availability
 			e.queue.Wait()
 			continue
 		}
 
-		// Reserve Slot
 		e.workerMutex.Lock()
 		e.runningDownloads++
 		e.workerMutex.Unlock()
 
-		// Notify Scheduler
 		e.scheduler.OnTaskStarted(task)
 
 		go func(t *storage.DownloadTask) {
 			defer func() {
-				// Panic Recovery
 				if r := recover(); r != nil {
 					e.logger.Error("Worker Panic Recovered", "id", t.ID, "panic", r)
 					e.failTask(t, fmt.Sprintf("Internal Worker Error: %v", r))
@@ -53,7 +53,6 @@ func (e *TachyonEngine) queueWorker() {
 				e.runningDownloads--
 				e.workerMutex.Unlock()
 
-				// Notify Scheduler & Wake Queue
 				e.scheduler.OnTaskCompleted(t)
 			}()
 			e.executeTask(t)
@@ -100,36 +99,14 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 		probe.AcceptRanges = false
 	}
 
-	// HTTP/2 multiplexes streams over a single TCP connection, so fewer
-	// workers avoid head-of-line blocking while still saturating bandwidth.
 	isH2 := probe.IsHTTP2
 
-	// 3. Prepare Disk (Allocator)
-	if probe.Size > 0 {
-		if err := e.allocator.AllocateFile(task.SavePath, probe.Size); err != nil {
-			e.failTask(task, fmt.Sprintf("Allocation failed: %v", err))
-			return
-		}
-	} else {
-		f, err := os.OpenFile(task.SavePath, os.O_RDWR|os.O_CREATE, 0666)
-		if err != nil {
-			e.failTask(task, fmt.Sprintf("File creation failed: %v", err))
-			return
-		}
-		f.Close()
-	}
-
-	// Re-open file for sharing with workers
-	file, err := os.OpenFile(task.SavePath, os.O_RDWR, 0666)
-	if err != nil {
-		e.failTask(task, fmt.Sprintf("File open failed: %v", err))
+	// 3. Prepare temp directory for part files
+	tempDir := tempDirForTask(task.SavePath)
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		e.failTask(task, fmt.Sprintf("Failed to create temp dir: %v", err))
 		return
 	}
-	defer file.Close()
-
-	// Create batched writer — all workers send writes through this channel
-	writer := newBatchWriter(file, e.bufferPool)
-	defer writer.Close()
 
 	// 4. Job Producer (Generate Parts)
 	parts := e.planDownloadParts(probe.Size, probe.AcceptRanges)
@@ -145,7 +122,6 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 		resumeState = nil
 	}
 
-	// Validate Resume
 	validationHeaders := map[string]string{
 		"ETag":          probe.ETag,
 		"Last-Modified": probe.LastModified,
@@ -156,19 +132,31 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 		resumeState = nil
 		task.Downloaded = 0
 		task.Progress = 0
+		cleanupPartFiles(tempDir, task.ID)
 	} else if resumeState != nil {
 		e.logger.Info("Resuming download", "id", task.ID, "parts_done", len(resumeState.Parts))
 	}
 
-	// Hydrate completed parts
+	// Hydrate completed parts — validate against temp files on disk
 	completedParts := make(map[int]bool)
 	partPlan := make(map[int]DownloadPart, len(parts))
 	for _, part := range parts {
 		partPlan[part.ID] = part
 	}
 	if resumeState != nil {
-		for id, part := range resumeState.Parts {
-			if part.Complete {
+		for id, ps := range resumeState.Parts {
+			if !ps.Complete {
+				continue
+			}
+			part, ok := partPlan[id]
+			if !ok {
+				continue
+			}
+			expectedSize := part.EndOffset - part.StartOffset + 1
+			if part.EndOffset == StreamEndOffset {
+				// Can't validate size for streaming parts
+				completedParts[id] = true
+			} else if partFileExists(tempDir, task.ID, id, expectedSize) {
 				completedParts[id] = true
 			}
 		}
@@ -180,12 +168,10 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 	partDoneCh := make(chan int, numParts)
 	errCh := make(chan error, numParts*2)
 
-	// In-flight tracker for work-stealing
 	inflight := newInflightTracker()
 	var nextStealID atomic.Int32
-	nextStealID.Store(int32(numParts)) // stolen parts get IDs above original count
+	nextStealID.Store(int32(numParts))
 
-	// Generate parts (Skip completed)
 	go func() {
 		for _, part := range parts {
 			if completedParts[part.ID] {
@@ -198,10 +184,8 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 
 	// 5. Worker Swarm (Consumers)
 	var errorCount atomic.Int32
-
 	wg := &sync.WaitGroup{}
 
-	// Initialize downloadedBytes based on completed parts
 	var initialBytes int64
 	for id, done := range completedParts {
 		if !done {
@@ -219,11 +203,9 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 
 	var downloadedBytes int64 = initialBytes
 
-	// Spawn initial workers via global pool (dynamic scaling adjusts this later)
 	workerCount := e.selectWorkerCountH2(host, numParts, probe.AcceptRanges, isH2)
 	strictRanges := probe.AcceptRanges && workerCount > 1
 
-	// Pre-warm TCP connections so workers skip TLS handshake + slow-start
 	if workerCount > 1 {
 		go e.WarmUpHost(host, workerCount/2)
 	}
@@ -234,11 +216,11 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 		wg.Add(1)
 		e.workerPool.Submit(func() {
 			defer wg.Done()
-			e.downloadWorker(ctx, task.ID, task.URL, host, writer, partCh, retryCh, partDoneCh, errCh, &downloadedBytes, &errorCount, task.Headers, task.Cookies, strictRanges, inflight, &nextStealID)
+			e.downloadWorker(ctx, task.ID, task.URL, host, tempDir, partCh, retryCh, partDoneCh, errCh, &downloadedBytes, &errorCount, task.Headers, task.Cookies, strictRanges, inflight, &nextStealID)
 		})
 	}
 
-	// 6. Monitor Progress & Waits
+	// 6. Monitor Progress
 	doneCh := make(chan struct{})
 	go func() {
 		wg.Wait()
@@ -248,20 +230,17 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
-	// Dynamic scaling ticker — re-evaluate every 5 seconds
 	scaleTicker := time.NewTicker(5 * time.Second)
 	defer scaleTicker.Stop()
 
-	// Speed calculation variables
 	var lastDownloadedBytes int64 = atomic.LoadInt64(&downloadedBytes)
 	lastTick := time.Now()
-	var ewmaSpeed float64 // Exponential Weighted Moving Average for smooth ETA
+	var ewmaSpeed float64
 
-	// Initial Status Update
+	// Initial Status Update — save once at start
 	task.Status = "downloading"
 	e.storage.SaveTask(*task)
 
-	// Notify frontend of status transition with metadata
 	if e.ctx != nil {
 		runtime.EventsEmit(e.ctx, "download:progress", map[string]interface{}{
 			"id":            task.ID,
@@ -275,18 +254,18 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 		})
 	}
 
-	// Update Bandwidth Manager priority
 	e.bandwidthManager.SetTaskPriority(task.ID, task.Priority)
 
 Loop:
 	for {
 		select {
 		case <-ctx.Done():
-			// Cancelled by user — atomic status+meta update
 			metaSnap := e.serializeState(task, completedParts, partPlan)
 			e.storage.SaveTaskAtomic(task.ID, func(t *storage.DownloadTask) {
 				t.Status = "paused"
 				t.MetaJSON = metaSnap
+				t.Downloaded = atomic.LoadInt64(&downloadedBytes)
+				t.Speed = 0
 			})
 			task.Status = "paused"
 			e.logger.Info("Download Cancelled/Paused", "id", task.ID)
@@ -301,6 +280,7 @@ Loop:
 			if errors.Is(err, ErrRangeIgnored) {
 				e.logger.Warn("Range ignored by host, downgrading to single-stream mode", "id", task.ID, "host", host)
 				e.markHostSingleStream(host)
+				cleanupPartFiles(tempDir, task.ID)
 				if saveErr := e.storage.SaveTaskAtomic(task.ID, func(t *storage.DownloadTask) {
 					t.Status = "pending"
 					t.MetaJSON = ""
@@ -324,7 +304,6 @@ Loop:
 				return
 			}
 
-			// Check for link expiration (403 Forbidden)
 			if errors.Is(err, ErrLinkExpired) {
 				e.logger.Warn("Link expired - pausing for URL refresh", "id", task.ID)
 				metaSnap := e.serializeState(task, completedParts, partPlan)
@@ -343,7 +322,6 @@ Loop:
 				return
 			}
 
-			// Check for stall timeout — save checkpoint and fail
 			if errors.Is(err, ErrStallTimeout) {
 				metaSnap := e.serializeState(task, completedParts, partPlan)
 				e.storage.SaveTaskAtomic(task.ID, func(t *storage.DownloadTask) {
@@ -361,7 +339,6 @@ Loop:
 				return
 			}
 
-			// Critical error reported
 			e.failTask(task, fmt.Sprintf("Critical error: %v", err))
 			cancel()
 			return
@@ -373,21 +350,19 @@ Loop:
 			}
 
 		case <-ticker.C:
-			// Update Stats
+			// Update in-memory stats only — no DB save
 			current := atomic.LoadInt64(&downloadedBytes)
 			task.Downloaded = current
 			if task.TotalSize > 0 {
 				task.Progress = (float64(current) / float64(task.TotalSize)) * 100
 			}
 
-			// EWMA Speed — smooth out fluctuations for stable ETA
 			now := time.Now()
 			duration := now.Sub(lastTick).Seconds()
 			if duration > 0 {
 				bytesDiff := current - lastDownloadedBytes
 				instantSpeed := float64(bytesDiff) / duration
 
-				// EWMA: 30% new sample, 70% previous (smooth)
 				if ewmaSpeed == 0 {
 					ewmaSpeed = instantSpeed
 				} else {
@@ -395,7 +370,6 @@ Loop:
 				}
 				task.Speed = ewmaSpeed
 
-				// Update global stats
 				e.stats.UpdateDownloadSpeed(int64(ewmaSpeed))
 
 				lastDownloadedBytes = current
@@ -408,7 +382,6 @@ Loop:
 				}
 			}
 
-			// Emit live progress event
 			if e.ctx != nil {
 				runtime.EventsEmit(e.ctx, "download:progress", map[string]interface{}{
 					"id":         task.ID,
@@ -422,24 +395,21 @@ Loop:
 			}
 
 		case <-scaleTicker.C:
-			// Dynamic worker scaling: query congestion controller for ideal count
 			if strictRanges {
 				ideal := int32(e.selectWorkerCountH2(host, numParts-len(completedParts), true, isH2))
 				current := activeWorkers.Load()
 				if ideal > current {
-					// Scale UP — spawn more workers
 					toSpawn := ideal - current
 					activeWorkers.Store(ideal)
 					for i := int32(0); i < toSpawn; i++ {
 						wg.Add(1)
 						e.workerPool.Submit(func() {
 							defer wg.Done()
-							e.downloadWorker(ctx, task.ID, task.URL, host, writer, partCh, retryCh, partDoneCh, errCh, &downloadedBytes, &errorCount, task.Headers, task.Cookies, strictRanges, inflight, &nextStealID)
+							e.downloadWorker(ctx, task.ID, task.URL, host, tempDir, partCh, retryCh, partDoneCh, errCh, &downloadedBytes, &errorCount, task.Headers, task.Cookies, strictRanges, inflight, &nextStealID)
 						})
 					}
 					e.logger.Info("Scaled up workers", "id", task.ID, "from", current, "to", ideal)
 				} else if ideal < current && ideal >= 1 {
-					// Scale DOWN — reduce target; excess workers drain naturally when partCh empties
 					activeWorkers.Store(ideal)
 					e.logger.Info("Scaled down workers target", "id", task.ID, "from", current, "to", ideal)
 				}
@@ -447,19 +417,34 @@ Loop:
 		}
 	}
 
-	// Completion
+	// 7. Merge & Verify
 	if len(completedParts) == numParts {
-		// 7. Verify Integrity
+		task.Status = "merging"
+		if e.ctx != nil {
+			runtime.EventsEmit(e.ctx, "download:progress", map[string]interface{}{
+				"id":     task.ID,
+				"status": "merging",
+			})
+		}
+
+		e.logger.Info("Merging part files", "id", task.ID, "parts", numParts)
+		if err := mergePartFiles(tempDir, task.ID, task.SavePath); err != nil {
+			e.failTask(task, fmt.Sprintf("Merge failed: %v", err))
+			return
+		}
+
+		// Clean up temp dir if empty
+		os.Remove(tempDir)
+
 		task.Status = "verifying"
 		e.storage.SaveTask(*task)
 		if e.ctx != nil {
-			runtime.EventsEmit(e.ctx, "download:verifying", map[string]interface{}{"id": task.ID})
+			runtime.EventsEmit(e.ctx, "download:progress", map[string]interface{}{
+				"id":     task.ID,
+				"status": "verifying",
+			})
 		}
 
-		// Close file handle before verification
-		file.Close()
-
-		// Check if verification is enabled
 		enabled := true
 		s, err := e.storage.GetString("enable_integrity_check")
 		if err == nil && s == "false" {
@@ -486,7 +471,6 @@ Loop:
 		})
 		e.logger.Info("Download Completed", "id", task.ID)
 
-		// Trigger native AV scan (non-blocking warning)
 		if scanErr := e.scanner.ScanFile(ctx, task.SavePath); scanErr != nil {
 			e.logger.Warn("AV scan warning", "id", task.ID, "error", scanErr)
 			if e.ctx != nil {
@@ -498,7 +482,6 @@ Loop:
 			}
 		}
 
-		// Update stats
 		e.stats.TrackFileCompleted()
 		e.stats.TrackDownloadBytes(task.TotalSize)
 

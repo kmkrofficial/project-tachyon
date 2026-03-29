@@ -53,14 +53,14 @@ func (e *TachyonEngine) selectChunkSize(totalSize int64) int64 {
 	}
 
 	switch {
-	case totalSize <= 128*1024*1024:
-		return 1 * 1024 * 1024
-	case totalSize <= 1024*1024*1024:
+	case totalSize <= 64*1024*1024:
 		return 2 * 1024 * 1024
-	case totalSize <= 4*1024*1024*1024:
+	case totalSize <= 512*1024*1024:
 		return 4 * 1024 * 1024
-	default:
+	case totalSize <= 2*1024*1024*1024:
 		return 8 * 1024 * 1024
+	default:
+		return 16 * 1024 * 1024
 	}
 }
 

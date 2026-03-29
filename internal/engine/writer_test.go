@@ -2,101 +2,138 @@ package engine
 
 import (
 	"os"
-	"sync"
+	"path/filepath"
+	"sync/atomic"
 	"testing"
 )
 
-func TestBatchWriter_BasicWrite(t *testing.T) {
-	f, err := os.CreateTemp("", "bw_test_*.bin")
+func TestPartWriter_BasicWrite(t *testing.T) {
+	tmpDir := t.TempDir()
+	var downloaded int64
+
+	pw, err := newPartWriter(tmpDir, "test-task", 0, &downloaded)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(f.Name())
-
-	pool := &sync.Pool{New: func() interface{} { b := make([]byte, 256); return &b }}
-	bw := newBatchWriter(f, pool)
 
 	data := []byte("hello, tachyon!")
-	if err := bw.Write(data, 0); err != nil {
+	if err := pw.Write(data); err != nil {
 		t.Fatalf("Write failed: %v", err)
 	}
-	bw.Close()
-	f.Close()
+	pw.Close()
 
-	// Verify
-	content, err := os.ReadFile(f.Name())
+	content, err := os.ReadFile(pw.Path())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(content[:len(data)]) != "hello, tachyon!" {
-		t.Errorf("expected 'hello, tachyon!', got %q", string(content[:len(data)]))
+	if string(content) != "hello, tachyon!" {
+		t.Errorf("expected 'hello, tachyon!', got %q", string(content))
+	}
+	if atomic.LoadInt64(&downloaded) != int64(len(data)) {
+		t.Errorf("expected downloaded=%d, got %d", len(data), downloaded)
 	}
 }
 
-func TestBatchWriter_ConcurrentWrites(t *testing.T) {
-	f, err := os.CreateTemp("", "bw_conc_*.bin")
+func TestPartWriter_MultipleWrites(t *testing.T) {
+	tmpDir := t.TempDir()
+	var downloaded int64
+
+	pw, err := newPartWriter(tmpDir, "test-task", 1, &downloaded)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(f.Name())
 
-	// Pre-allocate file
-	f.Truncate(1024)
+	pw.Write([]byte("part1-"))
+	pw.Write([]byte("part2-"))
+	pw.Write([]byte("part3"))
+	pw.Close()
 
-	pool := &sync.Pool{New: func() interface{} { b := make([]byte, 256); return &b }}
-	bw := newBatchWriter(f, pool)
-
-	var wg sync.WaitGroup
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func(offset int64) {
-			defer wg.Done()
-			data := []byte{byte(offset)}
-			if err := bw.Write(data, offset); err != nil {
-				t.Errorf("Write at offset %d failed: %v", offset, err)
-			}
-		}(int64(i * 100))
-	}
-	wg.Wait()
-	bw.Close()
-	f.Close()
-
-	content, err := os.ReadFile(f.Name())
+	content, err := os.ReadFile(pw.Path())
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i := 0; i < 10; i++ {
-		if content[i*100] != byte(i*100) {
-			t.Errorf("byte at offset %d: expected %d, got %d", i*100, byte(i*100), content[i*100])
+	if string(content) != "part1-part2-part3" {
+		t.Errorf("expected 'part1-part2-part3', got %q", string(content))
+	}
+	if pw.Written() != 17 {
+		t.Errorf("expected Written()=17, got %d", pw.Written())
+	}
+}
+
+func TestMergePartFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	var downloaded int64
+
+	// Create 3 part files
+	for i := 0; i < 3; i++ {
+		pw, err := newPartWriter(tmpDir, "merge-task", i, &downloaded)
+		if err != nil {
+			t.Fatal(err)
+		}
+		data := []byte{'A' + byte(i)}
+		for j := 0; j < 100; j++ {
+			pw.Write(data)
+		}
+		pw.Close()
+	}
+
+	destPath := filepath.Join(tmpDir, "merged.bin")
+	if err := mergePartFiles(tmpDir, "merge-task", destPath); err != nil {
+		t.Fatalf("merge failed: %v", err)
+	}
+
+	content, err := os.ReadFile(destPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(content) != 300 {
+		t.Fatalf("expected 300 bytes, got %d", len(content))
+	}
+	// First 100 bytes should be 'A', next 100 'B', last 100 'C'
+	for i := 0; i < 100; i++ {
+		if content[i] != 'A' {
+			t.Errorf("byte %d: expected 'A', got %c", i, content[i])
+			break
 		}
 	}
+	for i := 100; i < 200; i++ {
+		if content[i] != 'B' {
+			t.Errorf("byte %d: expected 'B', got %c", i, content[i])
+			break
+		}
+	}
+	for i := 200; i < 300; i++ {
+		if content[i] != 'C' {
+			t.Errorf("byte %d: expected 'C', got %c", i, content[i])
+			break
+		}
+	}
+
+	// Verify part files were cleaned up
+	matches, _ := filepath.Glob(filepath.Join(tmpDir, "merge-task.part.*"))
+	if len(matches) != 0 {
+		t.Errorf("expected part files to be deleted, found %d", len(matches))
+	}
 }
 
-func TestBatchWriter_CallerBufferReuse(t *testing.T) {
-	f, err := os.CreateTemp("", "bw_reuse_*.bin")
+func TestPartFileExists(t *testing.T) {
+	tmpDir := t.TempDir()
+	var downloaded int64
+
+	pw, err := newPartWriter(tmpDir, "exist-task", 5, &downloaded)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(f.Name())
-	f.Truncate(64)
+	pw.Write([]byte("12345"))
+	pw.Close()
 
-	pool := &sync.Pool{New: func() interface{} { b := make([]byte, 256); return &b }}
-	bw := newBatchWriter(f, pool)
-
-	// Write data, then overwrite buffer — batchWriter should have copied
-	buf := []byte("original")
-	if err := bw.Write(buf, 0); err != nil {
-		t.Fatal(err)
+	if !partFileExists(tmpDir, "exist-task", 5, 5) {
+		t.Error("expected partFileExists to return true")
 	}
-	copy(buf, "modified")
-	bw.Close()
-	f.Close()
-
-	content, err := os.ReadFile(f.Name())
-	if err != nil {
-		t.Fatal(err)
+	if partFileExists(tmpDir, "exist-task", 5, 10) {
+		t.Error("expected partFileExists to return false for wrong size")
 	}
-	if string(content[:8]) != "original" {
-		t.Errorf("expected 'original', got %q (buffer reuse corruption)", string(content[:8]))
+	if partFileExists(tmpDir, "exist-task", 99, 5) {
+		t.Error("expected partFileExists to return false for missing part")
 	}
 }

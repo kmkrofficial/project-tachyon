@@ -264,7 +264,7 @@ export function useTachyon() {
 
     // Calculate Total Speed from active downloads
     useEffect(() => {
-        const active = Object.values(downloads).filter(d => d.status === 'downloading');
+        const active = Object.values(downloads).filter(d => d.status === 'downloading' || d.status === 'merging' || d.status === 'verifying');
         const speed = active.reduce((acc, d) => acc + (d.speed_MBs || 0), 0);
         setTotalSpeed(speed);
     }, [downloads]);

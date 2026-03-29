@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -23,43 +22,34 @@ type DownloadPart struct {
 	Attempts    int   // Retry count
 }
 
-// activeDownloadInfo stores control structures for a running download
-type activeDownloadInfo struct {
-	Cancel context.CancelFunc
-	Wait   *sync.WaitGroup
-}
-
-// downloadWorker consumes parts and downloads them
-func (e *TachyonEngine) downloadWorker(ctx context.Context, taskID string, urlStr string, host string, writer *batchWriter, partCh <-chan DownloadPart, retryCh chan DownloadPart, partDoneCh chan<- int, errCh chan<- error, downloadedBytes *int64, errorCount *atomic.Int32, headersStr string, cookiesStr string, strictRanges bool, inflight *inflightTracker, nextStealID *atomic.Int32) {
+// downloadWorker consumes parts and downloads them to individual temp files.
+func (e *TachyonEngine) downloadWorker(ctx context.Context, taskID string, urlStr string, host string, tempDir string, partCh <-chan DownloadPart, retryCh chan DownloadPart, partDoneCh chan<- int, errCh chan<- error, downloadedBytes *int64, errorCount *atomic.Int32, headersStr string, cookiesStr string, strictRanges bool, inflight *inflightTracker, nextStealID *atomic.Int32) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case part, ok := <-partCh:
 			if !ok {
-				// Primary channel drained — try work-stealing
 				if strictRanges {
 					stolen, _ := inflight.StealLargest(int(nextStealID.Add(1) - 1))
 					if stolen != nil {
-						e.processDownloadPart(ctx, taskID, urlStr, host, writer, *stolen, retryCh, partDoneCh, errCh, downloadedBytes, errorCount, headersStr, cookiesStr, strictRanges, inflight)
+						e.processDownloadPart(ctx, taskID, urlStr, host, tempDir, *stolen, retryCh, partDoneCh, errCh, downloadedBytes, errorCount, headersStr, cookiesStr, strictRanges, inflight)
 						continue
 					}
 				}
 				return
 			}
-			e.processDownloadPart(ctx, taskID, urlStr, host, writer, part, retryCh, partDoneCh, errCh, downloadedBytes, errorCount, headersStr, cookiesStr, strictRanges, inflight)
+			e.processDownloadPart(ctx, taskID, urlStr, host, tempDir, part, retryCh, partDoneCh, errCh, downloadedBytes, errorCount, headersStr, cookiesStr, strictRanges, inflight)
 		}
 	}
 }
 
 // processDownloadPart handles downloading a single part with retry logic
-func (e *TachyonEngine) processDownloadPart(ctx context.Context, taskID string, urlStr string, host string, writer *batchWriter, part DownloadPart, retryCh chan DownloadPart, partDoneCh chan<- int, errCh chan<- error, downloadedBytes *int64, errorCount *atomic.Int32, headersStr string, cookiesStr string, strictRanges bool, inflight *inflightTracker) {
-	// Register with inflight tracker for work-stealing
+func (e *TachyonEngine) processDownloadPart(ctx context.Context, taskID string, urlStr string, host string, tempDir string, part DownloadPart, retryCh chan DownloadPart, partDoneCh chan<- int, errCh chan<- error, downloadedBytes *int64, errorCount *atomic.Int32, headersStr string, cookiesStr string, strictRanges bool, inflight *inflightTracker) {
 	inflight.Start(part)
 	defer inflight.Complete(part.ID)
-	// Circuit breaker gate — block if host is failing too much.
+
 	if err := e.breaker.Allow(host); err != nil {
-		// Back off and retry later instead of hammering the host.
 		if part.Attempts < 3 {
 			part.Attempts++
 			select {
@@ -74,7 +64,7 @@ func (e *TachyonEngine) processDownloadPart(ctx context.Context, taskID string, 
 	}
 
 	startedAt := time.Now()
-	err := e.downloadPart(ctx, taskID, urlStr, writer, part, BufferSize, headersStr, cookiesStr, strictRanges)
+	err := e.downloadPart(ctx, taskID, urlStr, tempDir, part, BufferSize, headersStr, cookiesStr, strictRanges, downloadedBytes)
 	e.congestion.RecordOutcome(host, time.Since(startedAt), err)
 
 	if err != nil {
@@ -86,21 +76,18 @@ func (e *TachyonEngine) processDownloadPart(ctx context.Context, taskID string, 
 			return
 		}
 
-		// Check for ErrLinkExpired (403)
 		if err == ErrLinkExpired {
 			e.logger.Warn("Link expired (403), task needs URL refresh", "id", taskID)
 			errCh <- ErrLinkExpired
 			return
 		}
 
-		// Check for stall timeout — report immediately as critical
 		if errors.Is(err, ErrStallTimeout) {
 			e.logger.Error("Download stalled (30s timeout)", "id", taskID, "part", part.ID)
 			errCh <- ErrStallTimeout
 			return
 		}
 
-		// Retry Logic
 		if part.Attempts < 3 {
 			part.Attempts++
 			e.logger.Warn("Retrying part", "id", part.ID, "attempt", part.Attempts)
@@ -112,15 +99,12 @@ func (e *TachyonEngine) processDownloadPart(ctx context.Context, taskID string, 
 				return
 			}
 		} else {
-			// Fatal
 			e.logger.Error("Part exceeded max retries", "id", part.ID)
 			errCh <- fmt.Errorf("Part %d run out of attempts", part.ID)
 			return
 		}
 	} else {
-		// Success
 		e.breaker.RecordSuccess(host)
-		atomic.AddInt64(downloadedBytes, part.EndOffset-part.StartOffset+1)
 		partDoneCh <- part.ID
 	}
 }
@@ -128,15 +112,11 @@ func (e *TachyonEngine) processDownloadPart(ctx context.Context, taskID string, 
 // ErrStallTimeout is returned when a download stalls for too long without receiving data.
 var ErrStallTimeout = fmt.Errorf("download stalled: no data received")
 
-// stallTimeout bounds
 const (
 	minStallTimeout = 5 * time.Second
 	maxStallTimeout = 30 * time.Second
 )
 
-// adaptiveStallTimeout computes a timeout based on recent throughput.
-// If we were receiving data at `recentSpeed` bytes/sec, we expect at least
-// one buffer fill within 3× the expected time, clamped to [5s, 30s].
 func adaptiveStallTimeout(recentBytesPerSec float64, bufSize int) time.Duration {
 	if recentBytesPerSec <= 0 {
 		return maxStallTimeout
@@ -152,8 +132,8 @@ func adaptiveStallTimeout(recentBytesPerSec float64, bufSize int) time.Duration 
 	return timeout
 }
 
-// downloadPart downloads a single part of the file
-func (e *TachyonEngine) downloadPart(ctx context.Context, taskID string, urlStr string, writer *batchWriter, part DownloadPart, chunkSize int, headersStr string, cookiesStr string, strictRanges bool) error {
+// downloadPart downloads a single part into its own temp file.
+func (e *TachyonEngine) downloadPart(ctx context.Context, taskID string, urlStr string, tempDir string, part DownloadPart, chunkSize int, headersStr string, cookiesStr string, strictRanges bool, downloadedBytes *int64) error {
 	req, err := e.newRequest("GET", urlStr, headersStr, cookiesStr)
 	if err != nil {
 		return err
@@ -174,18 +154,23 @@ func (e *TachyonEngine) downloadPart(ctx context.Context, taskID string, urlStr 
 	}
 
 	if resp.StatusCode != http.StatusPartialContent && resp.StatusCode != http.StatusOK {
-		// Check for 403 Forbidden - indicates expired/invalid link
 		if resp.StatusCode == http.StatusForbidden {
 			return ErrLinkExpired
 		}
 		return fmt.Errorf("unexpected status: %d", resp.StatusCode)
 	}
 
+	// Create temp file for this part
+	pw, err := newPartWriter(tempDir, taskID, part.ID, downloadedBytes)
+	if err != nil {
+		return err
+	}
+	defer pw.Close()
+
 	bufPtr := e.bufferPool.Get().(*[]byte)
 	defer e.bufferPool.Put(bufPtr)
 	buf := *bufPtr
 
-	currentOffset := part.StartOffset
 	totalBytesToRead := part.EndOffset - part.StartOffset + 1
 	if part.EndOffset == StreamEndOffset {
 		totalBytesToRead = StreamEndOffset
@@ -197,32 +182,28 @@ func (e *TachyonEngine) downloadPart(ctx context.Context, taskID string, urlStr 
 	lastSpeedCheck := time.Now()
 	lastSpeedBytes := int64(0)
 
-	// Pre-allocate read infrastructure — reused across all iterations to avoid
-	// per-read goroutine spawn, channel allocation, and timer leak overhead.
+	// Deadline-based stall detection using a timer
+	stallTimer := time.NewTimer(maxStallTimeout)
+	defer stallTimer.Stop()
+
 	type readResult struct {
 		n   int
 		err error
 	}
 	readCh := make(chan readResult, 1)
-	stallTimer := time.NewTimer(maxStallTimeout)
-	defer stallTimer.Stop()
 
 	for bytesReadTotal < totalBytesToRead {
-		// 1. Traffic Shaping
 		if err := e.bandwidthManager.Wait(ctx, taskID, chunkSize); err != nil {
 			return err
 		}
 
-		// Compute adaptive timeout from recent throughput
 		stall := adaptiveStallTimeout(recentSpeed, chunkSize)
 
-		// 2. Network Read — enforce adaptive stall timeout per read
 		go func() {
 			n, readErr := resp.Body.Read(buf)
 			readCh <- readResult{n, readErr}
 		}()
 
-		// Reset stall timer (drain if not yet fired)
 		if !stallTimer.Stop() {
 			select {
 			case <-stallTimer.C:
@@ -241,13 +222,11 @@ func (e *TachyonEngine) downloadPart(ctx context.Context, taskID string, urlStr 
 		}
 
 		if rr.n > 0 {
-			if writeErr := writer.Write(buf[:rr.n], currentOffset); writeErr != nil {
+			if writeErr := pw.Write(buf[:rr.n]); writeErr != nil {
 				return writeErr
 			}
-			currentOffset += int64(rr.n)
 			bytesReadTotal += int64(rr.n)
 
-			// Update speed estimate for adaptive timeout
 			lastSpeedBytes += int64(rr.n)
 			elapsed := time.Since(lastSpeedCheck).Seconds()
 			if elapsed >= 1.0 {
@@ -289,7 +268,6 @@ func (e *TachyonEngine) loadState(metaJSON string) (*storage.ResumeState, error)
 
 // serializeState serializes download state to MetaJSON
 func (e *TachyonEngine) serializeState(task *storage.DownloadTask, completedParts map[int]bool, partPlan map[int]DownloadPart) string {
-	// Construct ResumeState from current execution status
 	state := &storage.ResumeState{
 		Version:      1,
 		ETag:         "",

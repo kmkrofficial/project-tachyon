@@ -34,6 +34,8 @@ const statusColors: Record<string, string> = {
     pending: "bg-th-raised text-th-text-s border-th-border",
     probing: "bg-th-accent/10 text-th-accent-t border-th-accent/20",
     stopped: "bg-th-raised text-th-text-s border-th-border",
+    merging: "bg-th-accent/10 text-th-accent-t border-th-accent/20",
+    verifying: "bg-th-accent/10 text-th-accent-t border-th-accent/20",
 };
 
 const formatEta = (item: DownloadItem): string => {
@@ -230,7 +232,7 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
                                                 statusColors[item.status] || statusColors.pending,
                                                 isMissing ? "opacity-50" : ""
                                             )}>
-                                                {(item.status === 'downloading' || item.status === 'probing') && <span className="w-1 h-1 rounded-full bg-th-accent-t animate-pulse" />}
+                                                {(item.status === 'downloading' || item.status === 'probing' || item.status === 'merging' || item.status === 'verifying') && <span className="w-1 h-1 rounded-full bg-th-accent-t animate-pulse" />}
                                                 {item.status === 'error' && <AlertCircle size={10} />}
                                                 {item.status}
                                             </span>

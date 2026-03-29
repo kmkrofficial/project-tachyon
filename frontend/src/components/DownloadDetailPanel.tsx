@@ -55,7 +55,7 @@ export const DownloadDetailPanel: React.FC<DownloadDetailPanelProps> = ({ item, 
         setTimeout(() => setCopied(false), 1500);
     };
 
-    const isActive = item.status === 'downloading' || item.status === 'probing';
+    const isActive = item.status === 'downloading' || item.status === 'probing' || item.status === 'merging' || item.status === 'verifying';
     const isPaused = item.status === 'paused';
     const downloaded = item.downloaded || 0;
     const remaining = item.size > 0 ? Math.max(0, item.size - downloaded) : 0;

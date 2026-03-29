@@ -80,11 +80,11 @@ func TestSetDownloadTuning(t *testing.T) {
 }
 
 func TestConstants(t *testing.T) {
-	if DownloadChunkSize != 1*1024*1024 {
-		t.Errorf("DownloadChunkSize = %d, want %d", DownloadChunkSize, 1*1024*1024)
+	if DownloadChunkSize != 4*1024*1024 {
+		t.Errorf("DownloadChunkSize = %d, want %d", DownloadChunkSize, 4*1024*1024)
 	}
-	if BufferSize != 256*1024 {
-		t.Errorf("BufferSize = %d, want %d", BufferSize, 256*1024)
+	if BufferSize != 1*1024*1024 {
+		t.Errorf("BufferSize = %d, want %d", BufferSize, 1*1024*1024)
 	}
 	if MaxWorkersPerTask != 24 {
 		t.Errorf("MaxWorkersPerTask = %d, want 24", MaxWorkersPerTask)

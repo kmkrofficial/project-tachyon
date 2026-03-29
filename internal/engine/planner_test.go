@@ -55,8 +55,8 @@ func TestPlanDownloadParts_NegativeSize(t *testing.T) {
 
 func TestPlanDownloadParts_SmallFile(t *testing.T) {
 	e := newPlannerEngine(16, 0)
-	// 2MB file with 1MB chunks → expect ~2 parts
-	size := int64(2 * 1024 * 1024)
+	// 4MB file with 2MB chunks → expect 2 parts
+	size := int64(4 * 1024 * 1024)
 	parts := e.planDownloadParts(size, true)
 
 	// Verify coverage
@@ -78,7 +78,7 @@ func TestPlanDownloadParts_SmallFile(t *testing.T) {
 
 func TestPlanDownloadParts_LargeFile(t *testing.T) {
 	e := newPlannerEngine(16, 0)
-	// 500MB → chunk = 2MB, tail chunk = 512KB at 80%
+	// 500MB → chunk = 4MB, tail chunk = 1MB at 80%
 	size := int64(500 * 1024 * 1024)
 	parts := e.planDownloadParts(size, true)
 
@@ -94,7 +94,7 @@ func TestPlanDownloadParts_LargeFile(t *testing.T) {
 
 	// Tail chunks (past 80%) should be smaller
 	tailStart := int64(float64(size) * 0.8)
-	baseChunk := e.selectChunkSize(size) // 2MB
+	baseChunk := e.selectChunkSize(size) // 4MB
 	var foundSmallerTail bool
 	for _, p := range parts {
 		if p.StartOffset >= tailStart {
@@ -112,7 +112,7 @@ func TestPlanDownloadParts_LargeFile(t *testing.T) {
 
 func TestPlanDownloadParts_VeryLargeFile(t *testing.T) {
 	e := newPlannerEngine(16, 0)
-	// 5GB file → 8MB chunks
+	// 5GB file → 16MB chunks
 	size := int64(5 * 1024 * 1024 * 1024)
 	parts := e.planDownloadParts(size, true)
 
@@ -131,8 +131,8 @@ func TestPlanDownloadParts_VeryLargeFile(t *testing.T) {
 
 func TestPlanDownloadParts_ExactChunkBoundary(t *testing.T) {
 	e := newPlannerEngine(16, 0)
-	// File size exactly 1MB (1 chunk for <=128MB tier)
-	size := int64(1 * 1024 * 1024)
+	// File size exactly 2MB (1 chunk for <=64MB tier)
+	size := int64(2 * 1024 * 1024)
 	parts := e.planDownloadParts(size, true)
 
 	if parts[0].StartOffset != 0 || parts[len(parts)-1].EndOffset != size-1 {
@@ -172,14 +172,14 @@ func TestSelectChunkSize_Tiers(t *testing.T) {
 		totalSize int64
 		want      int64
 	}{
-		{"tiny 1MB", 1 * 1024 * 1024, 1 * 1024 * 1024},
-		{"128MB boundary", 128 * 1024 * 1024, 1 * 1024 * 1024},
-		{"129MB", 129 * 1024 * 1024, 2 * 1024 * 1024},
-		{"1GB", 1024 * 1024 * 1024, 2 * 1024 * 1024},
-		{"1GB + 1", 1024*1024*1024 + 1, 4 * 1024 * 1024},
-		{"4GB", 4 * 1024 * 1024 * 1024, 4 * 1024 * 1024},
-		{"4GB + 1", 4*1024*1024*1024 + 1, 8 * 1024 * 1024},
-		{"10GB", 10 * 1024 * 1024 * 1024, 8 * 1024 * 1024},
+		{"tiny 1MB", 1 * 1024 * 1024, 2 * 1024 * 1024},
+		{"64MB boundary", 64 * 1024 * 1024, 2 * 1024 * 1024},
+		{"65MB", 65 * 1024 * 1024, 4 * 1024 * 1024},
+		{"512MB", 512 * 1024 * 1024, 4 * 1024 * 1024},
+		{"513MB", 513 * 1024 * 1024, 8 * 1024 * 1024},
+		{"2GB", 2 * 1024 * 1024 * 1024, 8 * 1024 * 1024},
+		{"2GB + 1", 2*1024*1024*1024 + 1, 16 * 1024 * 1024},
+		{"10GB", 10 * 1024 * 1024 * 1024, 16 * 1024 * 1024},
 	}
 
 	for _, tt := range tests {
@@ -195,7 +195,7 @@ func TestSelectChunkSize_Tiers(t *testing.T) {
 func TestSelectChunkSize_WithBaseChunkOverride(t *testing.T) {
 	// Override with 4MB
 	e := newPlannerEngine(16, 4*1024*1024)
-	got := e.selectChunkSize(1 * 1024 * 1024) // would normally be 1MB
+	got := e.selectChunkSize(1 * 1024 * 1024) // would normally be 2MB
 	if got != 4*1024*1024 {
 		t.Errorf("expected override chunk 4MB, got %d", got)
 	}

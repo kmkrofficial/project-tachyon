@@ -144,7 +144,7 @@ function App() {
             // Status sidebar filter
             if (statusFilter !== 'all') {
                 // Treat "probing" as "downloading" for filter purposes
-                const effectiveStatus = item.status === 'probing' ? 'downloading' : item.status;
+                const effectiveStatus = (item.status === 'probing' || item.status === 'merging' || item.status === 'verifying') ? 'downloading' : item.status;
                 if (effectiveStatus !== statusFilter) return false;
             }
             // Category filter
@@ -168,7 +168,7 @@ function App() {
         })
         .sort((a, b) => {
             // Sort active/pending items by Queue Order (Ascending)
-            const activeStates = ["downloading", "probing", "pending", "paused", "stopped"];
+            const activeStates = ["downloading", "probing", "merging", "verifying", "pending", "paused", "stopped"];
             const isActiveA = activeStates.includes(a.status);
             const isActiveB = activeStates.includes(b.status);
 
