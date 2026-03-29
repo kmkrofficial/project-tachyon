@@ -16,9 +16,9 @@ const hourOptions = Array.from({ length: 24 }, (_, i) => ({
     label: String(i).padStart(2, '0'),
 }));
 
-const minuteOptions = Array.from({ length: 12 }, (_, i) => ({
-    value: String(i * 5),
-    label: String(i * 5).padStart(2, '0'),
+const minuteOptions = Array.from({ length: 60 }, (_, i) => ({
+    value: String(i),
+    label: String(i).padStart(2, '0'),
 }));
 
 interface HeaderProps {
