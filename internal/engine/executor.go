@@ -32,7 +32,9 @@ func (e *TachyonEngine) queueWorker() {
 		task := e.scheduler.GetNextTask(active, max)
 
 		if task == nil {
-			e.queue.Wait()
+			// Use a timeout so we re-check scheduled tasks periodically,
+			// even if no new tasks are pushed.
+			e.queue.WaitTimeout(10 * time.Second)
 			continue
 		}
 

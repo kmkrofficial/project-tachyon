@@ -4,6 +4,7 @@ import (
 	"project-tachyon/internal/storage"
 	"sort"
 	"sync"
+	"time"
 )
 
 // DownloadQueue manages ordered queue of downloads
@@ -101,6 +102,25 @@ func (dq *DownloadQueue) Wait() {
 	dq.mutex.Lock()
 	defer dq.mutex.Unlock()
 	dq.cond.Wait()
+}
+
+// WaitTimeout blocks until a signal is received or the timeout expires.
+// This prevents deadlock when only future-scheduled tasks are in the queue.
+func (dq *DownloadQueue) WaitTimeout(d time.Duration) {
+	done := make(chan struct{})
+	go func() {
+		dq.mutex.Lock()
+		dq.cond.Wait()
+		dq.mutex.Unlock()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(d):
+		// Timeout — wake the blocked goroutine so it exits
+		dq.cond.Broadcast()
+		<-done
+	}
 }
 
 // Signal wakes one waiter

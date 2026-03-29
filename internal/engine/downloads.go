@@ -132,11 +132,12 @@ func (e *TachyonEngine) StartDownload(urlStr string, destPath string, customFile
 		runtime.EventsEmit(e.ctx, "download:progress", map[string]interface{}{
 			"id":          downloadID,
 			"progress":    0,
-			"status":      "pending",
+			"status":      initialStatus,
 			"filename":    task.Filename,
 			"total":       task.TotalSize,
 			"path":        task.SavePath,
 			"queue_order": task.QueueOrder,
+			"start_time":  task.StartTime,
 		})
 	}
 

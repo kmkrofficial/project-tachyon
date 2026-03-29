@@ -269,6 +269,12 @@ func (e *TachyonEngine) RecoverInterruptedDownloads() {
 			toResume = append(toResume, task.ID)
 			e.logger.Info("Recovered interrupted download (will auto-resume)", "id", task.ID, "filename", task.Filename)
 
+		case "scheduled":
+			// Re-queue scheduled tasks so the scheduler can fire them at the right time
+			restoredTask := task
+			e.queue.Push(&restoredTask)
+			e.logger.Info("Recovered scheduled download", "id", task.ID, "filename", task.Filename, "start_time", task.StartTime)
+
 		case "paused":
 			// Graceful shutdown — only auto-resume if it was active before shutdown
 			if autoResumeSet[task.ID] {
