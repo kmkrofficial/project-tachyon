@@ -89,6 +89,16 @@ func (a *App) OpenFolder(id string) {
 	}
 }
 
+// OpenFolderByPath opens the file explorer with the given path selected
+func (a *App) OpenFolderByPath(path string) {
+	if path == "" {
+		return
+	}
+	if err := filesystem.OpenFolder(path); err != nil {
+		a.logger.Error("Failed to open folder by path", "path", path, "error", err)
+	}
+}
+
 // OpenFile opens a downloaded file with the default application
 func (a *App) OpenFile(id string) {
 	task, err := a.engine.GetTask(id)

@@ -1,7 +1,8 @@
 import React from 'react';
 import { DownloadItem } from '../types';
-import { X, Copy, Check } from 'lucide-react';
+import { X, Copy, Check, FolderOpen } from 'lucide-react';
 import { cn } from '../utils';
+import * as App from '../../wailsjs/go/app/App';
 
 const formatBytes = (bytes: number): string => {
     if (bytes === 0) return '0 B';
@@ -48,11 +49,25 @@ const categoryLabels: Record<string, string> = {
 
 export const DownloadDetailPanel: React.FC<DownloadDetailPanelProps> = ({ item, onClose }) => {
     const [copied, setCopied] = React.useState(false);
+    const [copiedPath, setCopiedPath] = React.useState(false);
 
     const copyUrl = () => {
         navigator.clipboard.writeText(item.url);
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
+    };
+
+    const copyPath = () => {
+        if (!item.path) return;
+        navigator.clipboard.writeText(item.path);
+        setCopiedPath(true);
+        setTimeout(() => setCopiedPath(false), 1500);
+    };
+
+    const openInExplorer = () => {
+        if (item.path && App && App.OpenFolderByPath) {
+            App.OpenFolderByPath(item.path);
+        }
     };
 
     const isActive = item.status === 'downloading' || item.status === 'probing' || item.status === 'merging' || item.status === 'verifying';
@@ -101,7 +116,27 @@ export const DownloadDetailPanel: React.FC<DownloadDetailPanelProps> = ({ item, 
         ] : []),
         {
             label: 'Save Path',
-            value: <span className="text-[12px] text-th-text-s truncate font-mono" title={item.path}>{item.path || '-'}</span>,
+            value: (
+                <div className="flex items-center gap-1.5 min-w-0">
+                    <span
+                        className="text-[12px] text-th-text-s truncate font-mono cursor-pointer hover:text-th-accent-t transition-colors"
+                        title={item.path ? `Click to show in explorer: ${item.path}` : undefined}
+                        onClick={openInExplorer}
+                    >
+                        {item.path || '-'}
+                    </span>
+                    {item.path && (
+                        <>
+                            <button onClick={copyPath} className="shrink-0 p-0.5 rounded hover:bg-th-raised transition-colors" title="Copy path">
+                                {copiedPath ? <Check size={12} className="text-green-400" /> : <Copy size={12} className="text-th-text-s" />}
+                            </button>
+                            <button onClick={openInExplorer} className="shrink-0 p-0.5 rounded hover:bg-th-raised transition-colors" title="Show in explorer">
+                                <FolderOpen size={12} className="text-th-text-s" />
+                            </button>
+                        </>
+                    )}
+                </div>
+            ),
         },
     ];
 
