@@ -88,13 +88,16 @@ func NewEngine(logger *slog.Logger, storage *storage.Storage) *TachyonEngine {
 	transport := &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
 		DialContext:           dnsCache.DialContext(30*time.Second, 30*time.Second),
-		MaxIdleConns:          100, // Global pool size
-		MaxIdleConnsPerHost:   32,  // Allow high concurrency per host
+		MaxIdleConns:          100,    // Global pool size
+		MaxIdleConnsPerHost:   32,     // Allow high concurrency per host
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
-		DisableCompression:    true, // We want raw bytes
-		ForceAttemptHTTP2:     true, // Enable HTTP/2 multiplexing
+		ResponseHeaderTimeout: 30 * time.Second, // Bound header wait to detect dead connections
+		DisableCompression:    true,              // We want raw bytes
+		ForceAttemptHTTP2:     true,              // Enable HTTP/2 multiplexing
+		ReadBufferSize:        128 * 1024,        // 128KB — reduces syscalls on fast links
+		WriteBufferSize:       32 * 1024,         // 32KB — sufficient for request headers
 	}
 
 	client := &http.Client{

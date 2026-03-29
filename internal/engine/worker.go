@@ -197,6 +197,16 @@ func (e *TachyonEngine) downloadPart(ctx context.Context, taskID string, urlStr 
 	lastSpeedCheck := time.Now()
 	lastSpeedBytes := int64(0)
 
+	// Pre-allocate read infrastructure — reused across all iterations to avoid
+	// per-read goroutine spawn, channel allocation, and timer leak overhead.
+	type readResult struct {
+		n   int
+		err error
+	}
+	readCh := make(chan readResult, 1)
+	stallTimer := time.NewTimer(maxStallTimeout)
+	defer stallTimer.Stop()
+
 	for bytesReadTotal < totalBytesToRead {
 		// 1. Traffic Shaping
 		if err := e.bandwidthManager.Wait(ctx, taskID, chunkSize); err != nil {
@@ -207,21 +217,25 @@ func (e *TachyonEngine) downloadPart(ctx context.Context, taskID string, urlStr 
 		stall := adaptiveStallTimeout(recentSpeed, chunkSize)
 
 		// 2. Network Read — enforce adaptive stall timeout per read
-		type readResult struct {
-			n   int
-			err error
-		}
-		readCh := make(chan readResult, 1)
 		go func() {
 			n, readErr := resp.Body.Read(buf)
 			readCh <- readResult{n, readErr}
 		}()
 
+		// Reset stall timer (drain if not yet fired)
+		if !stallTimer.Stop() {
+			select {
+			case <-stallTimer.C:
+			default:
+			}
+		}
+		stallTimer.Reset(stall)
+
 		var rr readResult
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(stall):
+		case <-stallTimer.C:
 			return ErrStallTimeout
 		case rr = <-readCh:
 		}

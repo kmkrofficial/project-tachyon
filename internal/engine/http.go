@@ -103,13 +103,13 @@ func (e *TachyonEngine) ProbeURL(urlStr string, headersStr string, cookiesStr st
 		return result, nil
 	}
 
-	// Network-level failure (server unreachable) — GET would fail identically
-	if err != nil && result == nil {
-		return nil, err
+	// 2. Always fallback to GET+Range — many servers/CDNs block HEAD at the
+	//    transport layer (connection reset) while serving GET just fine.
+	if err != nil {
+		e.logger.Info("HEAD failed, trying GET+Range fallback", "url", urlStr, "head_error", err)
+	} else {
+		e.logger.Info("HEAD probe insufficient (size=0), falling back to GET+Range", "url", urlStr)
 	}
-
-	// 2. Fallback to GET+Range for servers that don't support HEAD properly
-	e.logger.Info("HEAD probe insufficient, falling back to GET+Range", "url", urlStr)
 	result, err = e.probeGETRange(ctx, urlStr, headersStr, cookiesStr)
 	if err == nil && result != nil {
 		e.probes.Put(urlStr, result)

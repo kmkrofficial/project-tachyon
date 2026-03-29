@@ -329,3 +329,37 @@ func TestProbeURL_NoFilename(t *testing.T) {
 		t.Errorf("expected 'unknown_file' for root path, got %s", result.Filename)
 	}
 }
+
+func TestProbeURL_HEADRefusedGETFallback(t *testing.T) {
+	// Simulate a server that rejects HEAD (connection reset) but serves GET fine
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "HEAD" {
+			// Force a connection close to simulate transport-level error on HEAD
+			hj, ok := w.(http.Hijacker)
+			if !ok {
+				t.Skip("server does not support hijack")
+			}
+			conn, _, _ := hj.Hijack()
+			conn.Close()
+			return
+		}
+		// GET with Range works
+		w.Header().Set("Content-Range", "bytes 0-0/5000")
+		w.Header().Set("Content-Length", "1")
+		w.WriteHeader(http.StatusPartialContent)
+		w.Write([]byte("x"))
+	}))
+	defer server.Close()
+
+	e := newHTTPEngine()
+	result, err := e.ProbeURL(server.URL+"/file.bin", "", "")
+	if err != nil {
+		t.Fatalf("ProbeURL should succeed via GET fallback, but got: %v", err)
+	}
+	if result.Size != 5000 {
+		t.Errorf("expected size 5000 from GET fallback, got %d", result.Size)
+	}
+	if !result.AcceptRanges {
+		t.Error("expected AcceptRanges true from 206 response")
+	}
+}
