@@ -5,12 +5,12 @@ import { Header } from './components/Header';
 import { DownloadsTable } from './components/DownloadsTable';
 import { AddURLModal } from './components/AddURLModal';
 import { SettingsModal } from './components/SettingsModal';
-import { AnalyticsTab } from './components/AnalyticsTab';
 import { SpeedTestTab } from './components/SpeedTestTab';
 import { StatusBar } from './components/StatusBar';
 import { useTachyon } from './hooks/useTachyon';
 import { useTheme } from './hooks/useTheme';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { useSpeedTest } from './hooks/useSpeedTest';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 import * as AppBinding from '../wailsjs/go/app/App';
@@ -32,6 +32,8 @@ function App() {
 
     // Activate theme system
     useTheme();
+
+    const speedTest = useSpeedTest();
 
     const sidebarCollapsed = useSettingsStore(s => s.sidebarCollapsed);
     const setSidebarCollapsed = useSettingsStore(s => s.setSidebarCollapsed);
@@ -59,7 +61,7 @@ function App() {
 
     // openFolder and openFile trigger backend ops by ID
     // We pass addToast to useTachyon if we want it to manage some errors, or just pass it down to components
-    const { downloads, addDownload, openFolder, openFile, dailyData, totalSpeed, reorderDownload, setPriority } = useTachyon();
+    const { downloads, addDownload, openFolder, openFile, totalSpeed, reorderDownload, setPriority } = useTachyon();
 
     // Keyboard shortcuts
     useKeyboardShortcuts({
@@ -136,7 +138,7 @@ function App() {
     const filteredDownloads = allDownloads
         .filter(item => {
             // Tab filter
-            if (activeTab !== "all" && activeTab !== "settings" && activeTab !== "analytics") {
+            if (activeTab !== "all" && activeTab !== "settings") {
                 if (item.status !== activeTab) return false;
             }
             // Status sidebar filter
@@ -210,16 +212,10 @@ function App() {
                 <main className="flex-1 min-h-0 pt-16 pb-7 bg-th-base flex flex-col">
 
                         {/* Dynamic Content */}
-                        {activeTab === 'analytics' ? (
+                        {activeTab === 'speedtest' ? (
                             <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-th-raised scrollbar-track-transparent">
                                 <div className="max-w-[1600px] mx-auto p-4 sm:p-6 md:p-8">
-                                    <AnalyticsTab />
-                                </div>
-                            </div>
-                        ) : activeTab === 'speedtest' ? (
-                            <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-th-raised scrollbar-track-transparent">
-                                <div className="max-w-[1600px] mx-auto p-4 sm:p-6 md:p-8">
-                                    <SpeedTestTab />
+                                    <SpeedTestTab state={speedTest} />
                                 </div>
                             </div>
                         ) : (
@@ -282,7 +278,6 @@ function App() {
                 <StatusBar
                     activeDownloads={Object.values(downloads).filter((d: any) => d.status === 'downloading').length}
                     pendingDownloads={Object.values(downloads).filter((d: any) => d.status === 'pending').length}
-                    dailyData={dailyData}
                     globalSpeed={totalSpeed}
                     sidebarCollapsed={sidebarCollapsed}
                 />

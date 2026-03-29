@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { LayoutGrid, Activity, Settings, Clock, Zap, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { LayoutGrid, Settings, Clock, Zap, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { cn } from "../utils";
 
 type SidebarProps = {
@@ -16,7 +16,6 @@ export function Sidebar({ activeTab, setActiveTab, collapsed, onToggleCollapse }
     { id: "all", label: "Dashboard", icon: LayoutGrid },
     { id: "scheduler", label: "Scheduler", icon: Clock },
     { id: "speedtest", label: "Speed Test", icon: Zap },
-    { id: "analytics", label: "Analytics", icon: Activity },
   ];
 
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {

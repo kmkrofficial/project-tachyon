@@ -332,36 +332,6 @@ func TestResumeAllDownloads(t *testing.T) {
 	a.ResumeAllDownloads()
 }
 
-func TestGetLifetimeStats(t *testing.T) {
-	a, cleanup := newTestApp(t)
-	defer cleanup()
-
-	stats := a.GetLifetimeStats()
-	if stats < 0 {
-		t.Errorf("lifetime stats should be >= 0, got %d", stats)
-	}
-}
-
-func TestGetAnalytics(t *testing.T) {
-	a, cleanup := newTestApp(t)
-	defer cleanup()
-
-	analytics := a.GetAnalytics()
-	// Should return a valid struct with no panic
-	_ = analytics
-}
-
-func TestGetDiskUsage(t *testing.T) {
-	a, cleanup := newTestApp(t)
-	defer cleanup()
-
-	disk := a.GetDiskUsage()
-	// TotalGB should be > 0 on any real system
-	if disk.TotalGB == 0 {
-		t.Log("disk TotalGB is 0 (may be expected in some CI environments)")
-	}
-}
-
 func TestGetSpeedTestHistory_Empty(t *testing.T) {
 	a, cleanup := newTestApp(t)
 	defer cleanup()

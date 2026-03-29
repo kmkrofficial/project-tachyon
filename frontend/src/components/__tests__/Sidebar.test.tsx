@@ -13,7 +13,6 @@ describe('Sidebar', () => {
     it('renders all menu items when expanded', () => {
         render(<Sidebar {...defaultProps} />);
         expect(screen.getByText('Dashboard')).toBeInTheDocument();
-        expect(screen.getByText('Analytics')).toBeInTheDocument();
         expect(screen.getByText('Scheduler')).toBeInTheDocument();
         expect(screen.getByText('Speed Test')).toBeInTheDocument();
         expect(screen.getByText('Settings')).toBeInTheDocument();
@@ -34,18 +33,18 @@ describe('Sidebar', () => {
     it('hides menu labels when collapsed', () => {
         render(<Sidebar {...defaultProps} collapsed={true} />);
         const dashboard = screen.queryByText('Dashboard');
-        const analytics = screen.queryByText('Analytics');
+        const scheduler = screen.queryByText('Scheduler');
         expect(dashboard).toBeInTheDocument();
         expect(dashboard).toHaveClass('opacity-0');
-        expect(analytics).toBeInTheDocument();
-        expect(analytics).toHaveClass('opacity-0');
+        expect(scheduler).toBeInTheDocument();
+        expect(scheduler).toHaveClass('opacity-0');
     });
 
     it('calls setActiveTab when menu item clicked', () => {
         const setActiveTab = vi.fn();
         render(<Sidebar {...defaultProps} setActiveTab={setActiveTab} />);
-        fireEvent.click(screen.getByText('Analytics'));
-        expect(setActiveTab).toHaveBeenCalledWith('analytics');
+        fireEvent.click(screen.getByText('Scheduler'));
+        expect(setActiveTab).toHaveBeenCalledWith('scheduler');
     });
 
     it('calls onToggleCollapse when collapse button clicked', () => {

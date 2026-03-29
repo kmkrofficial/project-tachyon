@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { EventsOn, EventsOff } from "../../wailsjs/runtime/runtime";
 // @ts-ignore
 import * as App from "../../wailsjs/go/app/App";
-import prettyBytes from 'pretty-bytes';
+
 
 import { DownloadItem } from "../types";
 
@@ -228,46 +228,7 @@ export function useTachyon() {
         return null;
     }, []);
 
-    const getLifetimeStats = useCallback(async () => {
-        if (App && App.GetLifetimeStats) {
-            return await App.GetLifetimeStats();
-        }
-        return 0;
-    }, []);
-
-    const [dailyData, setDailyData] = useState<string>("0 GB");
-    const [analyticsData, setAnalyticsData] = useState<any>(null); // Full raw data
-    const [diskUsage, setDiskUsage] = useState<any>({ free_gb: 0, percent: 0 });
     const [totalSpeed, setTotalSpeed] = useState<number>(0);
-
-    useEffect(() => {
-        // ... (existing history loading)
-
-        // Poll for Dashboard Stats (every 2s)
-        const interval = setInterval(async () => {
-            if (App && App.GetAnalytics) {
-                try {
-                    const analytics = await App.GetAnalytics();
-                    setAnalyticsData(analytics);
-
-                    // Find today's bytes
-                    const today = new Date().toISOString().split('T')[0];
-                    if (analytics.daily_history && analytics.daily_history[today]) {
-                        setDailyData(prettyBytes(analytics.daily_history[today]));
-                    } else {
-                        setDailyData("0 B");
-                    }
-
-                    setDiskUsage(analytics.disk_usage);
-
-                } catch (e) {
-                    // console.error(e);
-                }
-            }
-        }, 10000); // Poll every 10 seconds
-
-        return () => clearInterval(interval);
-    }, []);
 
     const reorderDownload = useCallback(async (id: string, direction: string) => {
         if (App && App.ReorderDownload) {
@@ -295,12 +256,8 @@ export function useTachyon() {
         openFolder,
         openFile,
         runSpeedTest,
-        getLifetimeStats,
         reorderDownload,
         setPriority,
-        dailyData,
-        analyticsData,
-        diskUsage,
         totalSpeed
     };
 }

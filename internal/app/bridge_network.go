@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"project-tachyon/internal/analytics"
 	"project-tachyon/internal/network"
 	"project-tachyon/internal/storage"
 	"project-tachyon/internal/updater"
@@ -102,34 +101,6 @@ func (a *App) GetSpeedTestHistory() []storage.SpeedTestHistory {
 // ClearSpeedTestHistory deletes all speed test records
 func (a *App) ClearSpeedTestHistory() error {
 	return a.engine.GetStorage().ClearSpeedTestHistory()
-}
-
-// GetLifetimeStats returns total bytes downloaded over lifetime
-func (a *App) GetLifetimeStats() int64 {
-	stats := a.engine.GetStats()
-	if stats == nil {
-		return 0
-	}
-	lifetime, _ := stats.GetLifetimeStats()
-	return lifetime
-}
-
-// GetAnalytics returns comprehensive analytics data including disk usage
-func (a *App) GetAnalytics() analytics.AnalyticsData {
-	stats := a.engine.GetStats()
-	if stats == nil {
-		return analytics.AnalyticsData{}
-	}
-	return stats.GetAnalytics()
-}
-
-// GetDiskUsage returns disk space info for the download drive
-func (a *App) GetDiskUsage() analytics.DiskUsageInfo {
-	stats := a.engine.GetStats()
-	if stats == nil {
-		return analytics.DiskUsageInfo{}
-	}
-	return stats.GetDiskUsage()
 }
 
 // checkUpdaterPackage wraps the updater package call

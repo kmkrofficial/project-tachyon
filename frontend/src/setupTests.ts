@@ -18,19 +18,6 @@ Object.defineProperty(window, 'matchMedia', {
 
 // lucide-react is aliased in vite.config.ts test.alias to avoid resolving 1671 sub-modules
 
-// Mock recharts to avoid canvas issues in jsdom
-vi.mock('recharts', () => ({
-    ResponsiveContainer: ({ children }: any) => children,
-    AreaChart: ({ children }: any) => children,
-    Area: () => null,
-    XAxis: () => null,
-    YAxis: () => null,
-    Tooltip: () => null,
-    PieChart: ({ children }: any) => children,
-    Pie: () => null,
-    Cell: () => null,
-}));
-
 // Mock Wails runtime
 vi.mock('../wailsjs/runtime/runtime', () => ({
     EventsOn: vi.fn(() => () => {}),
@@ -60,8 +47,6 @@ vi.mock('../wailsjs/go/app/App', () => ({
     SetPriority: vi.fn(),
     PauseAllDownloads: vi.fn(),
     ResumeAllDownloads: vi.fn(),
-    GetAnalytics: vi.fn().mockResolvedValue({ daily_history: {}, disk_usage: { free_gb: 100, percent: 45 } }),
-    GetLifetimeStats: vi.fn().mockResolvedValue({ total_bytes: 1024 * 1024 * 1024 }),
     GetNetworkHealth: vi.fn().mockResolvedValue({ level: 'normal' }),
     RunNetworkSpeedTest: vi.fn().mockResolvedValue({ download_speed: 15.5, upload_speed: 5.2, latency: 25 }),
     GetEnableAI: vi.fn().mockResolvedValue(false),
@@ -77,5 +62,6 @@ vi.mock('../wailsjs/go/app/App', () => ({
     FactoryReset: vi.fn(),
     GetRecentAuditLogs: vi.fn().mockResolvedValue([]),
     GetSpeedTestHistory: vi.fn().mockResolvedValue([]),
+    CancelSpeedTest: vi.fn(),
     SetHostLimit: vi.fn(),
 }));

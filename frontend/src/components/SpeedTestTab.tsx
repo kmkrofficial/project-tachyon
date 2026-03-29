@@ -72,16 +72,26 @@ export const SpeedTestTab: React.FC<SpeedTestTabProps> = ({ state }) => {
                             <span className="text-th-text-m text-xs">Press Go to start a speed test</span>
                         )}
                     </div>
-                    <button
-                        onClick={runTest}
-                        disabled={isRunning}
-                        className={`px-5 py-1.5 rounded-lg font-bold text-sm uppercase tracking-wider transition-all ${isRunning
-                            ? 'bg-th-accent/20 text-th-accent-t/60 cursor-not-allowed'
-                            : 'bg-th-accent hover:bg-th-accent-h text-white shadow-lg shadow-th-accent/30 active:scale-95'
-                        }`}
-                    >
-                        {isRunning ? (phaseLabels[livePhase?.phase ?? ''] || 'Testing...') : 'Go'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {isRunning && (
+                            <button
+                                onClick={cancelTest}
+                                className="px-4 py-1.5 rounded-lg font-bold text-sm uppercase tracking-wider transition-all bg-red-500/15 hover:bg-red-500/25 text-red-400 active:scale-95"
+                            >
+                                <span className="flex items-center gap-1.5"><X size={14} /> Cancel</span>
+                            </button>
+                        )}
+                        <button
+                            onClick={runTest}
+                            disabled={isRunning}
+                            className={`px-5 py-1.5 rounded-lg font-bold text-sm uppercase tracking-wider transition-all ${isRunning
+                                ? 'bg-th-accent/20 text-th-accent-t/60 cursor-not-allowed'
+                                : 'bg-th-accent hover:bg-th-accent-h text-white shadow-lg shadow-th-accent/30 active:scale-95'
+                            }`}
+                        >
+                            {isRunning ? (phaseLabels[livePhase?.phase ?? ''] || 'Testing...') : 'Go'}
+                        </button>
+                    </div>
                 </div>
 
                 {/* Download / Ping+Jitter / Upload */}
@@ -92,7 +102,7 @@ export const SpeedTestTab: React.FC<SpeedTestTabProps> = ({ state }) => {
                             <span className="text-xs text-th-text-m uppercase tracking-wider">Download</span>
                         </div>
                         <div className="text-4xl font-bold text-th-text tabular-nums">
-                            {displayDownload !== null ? displayDownload.toFixed(1) : <span className="text-th-text-m">--</span>}
+                            {displayDownload !== null ? (displayDownload || 0).toFixed(1) : <span className="text-th-text-m">--</span>}
                         </div>
                         <div className="text-xs text-th-text-m mt-0.5">Mbps</div>
                     </div>
@@ -112,7 +122,7 @@ export const SpeedTestTab: React.FC<SpeedTestTabProps> = ({ state }) => {
                             <span className="text-xs text-th-text-m uppercase tracking-wider">Upload</span>
                         </div>
                         <div className="text-4xl font-bold text-th-text tabular-nums">
-                            {displayUpload !== null ? displayUpload.toFixed(1) : <span className="text-th-text-m">--</span>}
+                            {displayUpload !== null ? (displayUpload || 0).toFixed(1) : <span className="text-th-text-m">--</span>}
                         </div>
                         <div className="text-xs text-th-text-m mt-0.5">Mbps</div>
                     </div>
@@ -157,7 +167,7 @@ export const SpeedTestTab: React.FC<SpeedTestTabProps> = ({ state }) => {
                     </div>
                     {history.length > 0 && (
                         <button
-                            onClick={async () => { await ClearSpeedTestHistory(); setHistory([]); }}
+                            onClick={clearHistory}
                             className="text-xs text-th-text-m hover:text-red-400 transition-colors"
                         >
                             Clear All

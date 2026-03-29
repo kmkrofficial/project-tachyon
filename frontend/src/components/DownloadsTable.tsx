@@ -288,7 +288,7 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
                         <p className="font-medium text-lg">No downloads yet</p>
                         <p className="text-sm text-center max-w-xs">Drag + drop a link, press Ctrl+V, or use the Add Download button to get started</p>
                     </div>
-                ))
+                )}
             </div>
 
             {/* Bulk Action Bar */}

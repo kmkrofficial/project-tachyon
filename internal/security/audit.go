@@ -15,13 +15,13 @@ import (
 )
 
 type AccessLogEntry struct {
-	ID        string    `json:"id"`
-	Timestamp time.Time `json:"timestamp"`
-	SourceIP  string    `json:"source_ip"`
-	UserAgent string    `json:"user_agent"`
-	Action    string    `json:"action"` // e.g., "POST /queue" or "MCP:download_file"
-	Status    int       `json:"status"` // 200, 401, 403
-	Details   string    `json:"details"`
+	ID        string `json:"id"`
+	Timestamp string `json:"timestamp"`
+	SourceIP  string `json:"source_ip"`
+	UserAgent string `json:"user_agent"`
+	Action    string `json:"action"` // e.g., "POST /queue" or "MCP:download_file"
+	Status    int    `json:"status"` // 200, 401, 403
+	Details   string `json:"details"`
 }
 
 type AuditLogger struct {
@@ -57,7 +57,7 @@ func (a *AuditLogger) SetContext(ctx context.Context) {
 func (a *AuditLogger) Log(sourceIP, userAgent, action string, status int, details string) {
 	entry := AccessLogEntry{
 		ID:        uuid.New().String(),
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 		SourceIP:  sourceIP,
 		UserAgent: userAgent,
 		Action:    action,
