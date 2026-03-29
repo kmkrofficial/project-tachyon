@@ -16,19 +16,7 @@ Object.defineProperty(window, 'matchMedia', {
     })),
 });
 
-// Mock Lucide React — all icons used across components
-const icon = (name: string) => {
-    const component = (props: any) => {
-        const { children, ...rest } = props || {};
-        return name;
-    };
-    component.displayName = name;
-    return component;
-};
-
-vi.mock('lucide-react', () =>
-    new Proxy({}, { get: (_target, prop: string) => icon(prop) })
-);
+// lucide-react is aliased in vite.config.ts test.alias to avoid resolving 1671 sub-modules
 
 // Mock recharts to avoid canvas issues in jsdom
 vi.mock('recharts', () => ({

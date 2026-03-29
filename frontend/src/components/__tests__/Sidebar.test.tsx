@@ -26,13 +26,19 @@ describe('Sidebar', () => {
 
     it('hides brand name when collapsed', () => {
         render(<Sidebar {...defaultProps} collapsed={true} />);
-        expect(screen.queryByText('TDM')).not.toBeInTheDocument();
+        const brand = screen.queryByText('TDM');
+        expect(brand).toBeInTheDocument();
+        expect(brand).toHaveClass('opacity-0');
     });
 
     it('hides menu labels when collapsed', () => {
         render(<Sidebar {...defaultProps} collapsed={true} />);
-        expect(screen.queryByText('Dashboard')).not.toBeInTheDocument();
-        expect(screen.queryByText('Analytics')).not.toBeInTheDocument();
+        const dashboard = screen.queryByText('Dashboard');
+        const analytics = screen.queryByText('Analytics');
+        expect(dashboard).toBeInTheDocument();
+        expect(dashboard).toHaveClass('opacity-0');
+        expect(analytics).toBeInTheDocument();
+        expect(analytics).toHaveClass('opacity-0');
     });
 
     it('calls setActiveTab when menu item clicked', () => {

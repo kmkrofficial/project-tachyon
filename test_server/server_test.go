@@ -11,7 +11,7 @@ import (
 )
 
 func newTestServerAndHTTP() (*TestServer, *httptest.Server) {
-	ts := NewTestServer(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	ts := NewTestServer(slog.New(slog.NewTextHandler(io.Discard, nil)), 0)
 	srv := httptest.NewServer(ts.Handler())
 	return ts, srv
 }

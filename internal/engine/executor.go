@@ -64,6 +64,7 @@ func (e *TachyonEngine) queueWorker() {
 // executeTask is the core download orchestration function
 func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 	e.logger.Info("Starting Hyper-Engine Execution", "id", task.ID, "url", task.URL)
+	startedAt := time.Now()
 
 	// 1. Setup Context for Cancellation
 	parentCtx := e.ctx
@@ -99,6 +100,10 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 		probe.AcceptRanges = false
 	}
 
+	// HTTP/2 multiplexes streams over a single TCP connection, so fewer
+	// workers avoid head-of-line blocking while still saturating bandwidth.
+	isH2 := probe.IsHTTP2
+
 	// 3. Prepare Disk (Allocator)
 	if probe.Size > 0 {
 		if err := e.allocator.AllocateFile(task.SavePath, probe.Size); err != nil {
@@ -121,6 +126,10 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 		return
 	}
 	defer file.Close()
+
+	// Create batched writer — all workers send writes through this channel
+	writer := newBatchWriter(file, e.bufferPool)
+	defer writer.Close()
 
 	// 4. Job Producer (Generate Parts)
 	parts := e.planDownloadParts(probe.Size, probe.AcceptRanges)
@@ -171,6 +180,11 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 	partDoneCh := make(chan int, numParts)
 	errCh := make(chan error, numParts*2)
 
+	// In-flight tracker for work-stealing
+	inflight := newInflightTracker()
+	var nextStealID atomic.Int32
+	nextStealID.Store(int32(numParts)) // stolen parts get IDs above original count
+
 	// Generate parts (Skip completed)
 	go func() {
 		for _, part := range parts {
@@ -206,15 +220,21 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 	var downloadedBytes int64 = initialBytes
 
 	// Spawn initial workers via global pool (dynamic scaling adjusts this later)
-	workerCount := e.selectWorkerCount(host, numParts, probe.AcceptRanges)
+	workerCount := e.selectWorkerCountH2(host, numParts, probe.AcceptRanges, isH2)
 	strictRanges := probe.AcceptRanges && workerCount > 1
+
+	// Pre-warm TCP connections so workers skip TLS handshake + slow-start
+	if workerCount > 1 {
+		go e.WarmUpHost(host, workerCount/2)
+	}
+
 	var activeWorkers atomic.Int32
 	activeWorkers.Store(int32(workerCount))
 	for i := 0; i < workerCount; i++ {
 		wg.Add(1)
 		e.workerPool.Submit(func() {
 			defer wg.Done()
-			e.downloadWorker(ctx, task.ID, task.URL, host, file, partCh, retryCh, partDoneCh, errCh, &downloadedBytes, &errorCount, task.Headers, task.Cookies, strictRanges)
+			e.downloadWorker(ctx, task.ID, task.URL, host, writer, partCh, retryCh, partDoneCh, errCh, &downloadedBytes, &errorCount, task.Headers, task.Cookies, strictRanges, inflight, &nextStealID)
 		})
 	}
 
@@ -235,18 +255,22 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 	// Speed calculation variables
 	var lastDownloadedBytes int64 = atomic.LoadInt64(&downloadedBytes)
 	lastTick := time.Now()
+	var ewmaSpeed float64 // Exponential Weighted Moving Average for smooth ETA
 
 	// Initial Status Update
 	task.Status = "downloading"
 	e.storage.SaveTask(*task)
 
-	// Notify frontend of status transition
+	// Notify frontend of status transition with metadata
 	if e.ctx != nil {
 		runtime.EventsEmit(e.ctx, "download:progress", map[string]interface{}{
-			"id":       task.ID,
-			"status":   "downloading",
-			"filename": task.Filename,
-			"total":    task.TotalSize,
+			"id":            task.ID,
+			"status":        "downloading",
+			"filename":      task.Filename,
+			"total":         task.TotalSize,
+			"accept_ranges": probe.AcceptRanges,
+			"category":      task.Category,
+			"started_at":    startedAt.Format(time.RFC3339),
 		})
 	}
 
@@ -351,25 +375,34 @@ Loop:
 			// Update Stats
 			current := atomic.LoadInt64(&downloadedBytes)
 			task.Downloaded = current
-			task.Progress = (float64(current) / float64(task.TotalSize)) * 100
+			if task.TotalSize > 0 {
+				task.Progress = (float64(current) / float64(task.TotalSize)) * 100
+			}
 
-			// Calculate Speed & ETA
+			// EWMA Speed — smooth out fluctuations for stable ETA
 			now := time.Now()
 			duration := now.Sub(lastTick).Seconds()
 			if duration > 0 {
 				bytesDiff := current - lastDownloadedBytes
-				speed := float64(bytesDiff) / duration
-				task.Speed = speed
+				instantSpeed := float64(bytesDiff) / duration
+
+				// EWMA: 30% new sample, 70% previous (smooth)
+				if ewmaSpeed == 0 {
+					ewmaSpeed = instantSpeed
+				} else {
+					ewmaSpeed = 0.7*ewmaSpeed + 0.3*instantSpeed
+				}
+				task.Speed = ewmaSpeed
 
 				// Update global stats
-				e.stats.UpdateDownloadSpeed(int64(speed))
+				e.stats.UpdateDownloadSpeed(int64(ewmaSpeed))
 
 				lastDownloadedBytes = current
 				lastTick = now
 
-				if speed > 0 {
+				if ewmaSpeed > 0 {
 					remainingBytes := task.TotalSize - current
-					etaSeconds := float64(remainingBytes) / speed
+					etaSeconds := float64(remainingBytes) / ewmaSpeed
 					task.TimeRemaining = fmt.Sprintf("%.0fs", etaSeconds)
 				}
 			}
@@ -390,19 +423,24 @@ Loop:
 		case <-scaleTicker.C:
 			// Dynamic worker scaling: query congestion controller for ideal count
 			if strictRanges {
-				ideal := int32(e.selectWorkerCount(host, numParts-len(completedParts), true))
+				ideal := int32(e.selectWorkerCountH2(host, numParts-len(completedParts), true, isH2))
 				current := activeWorkers.Load()
 				if ideal > current {
+					// Scale UP — spawn more workers
 					toSpawn := ideal - current
 					activeWorkers.Store(ideal)
 					for i := int32(0); i < toSpawn; i++ {
 						wg.Add(1)
 						e.workerPool.Submit(func() {
 							defer wg.Done()
-							e.downloadWorker(ctx, task.ID, task.URL, host, file, partCh, retryCh, partDoneCh, errCh, &downloadedBytes, &errorCount, task.Headers, task.Cookies, strictRanges)
+							e.downloadWorker(ctx, task.ID, task.URL, host, writer, partCh, retryCh, partDoneCh, errCh, &downloadedBytes, &errorCount, task.Headers, task.Cookies, strictRanges, inflight, &nextStealID)
 						})
 					}
 					e.logger.Info("Scaled up workers", "id", task.ID, "from", current, "to", ideal)
+				} else if ideal < current && ideal >= 1 {
+					// Scale DOWN — reduce target; excess workers drain naturally when partCh empties
+					activeWorkers.Store(ideal)
+					e.logger.Info("Scaled down workers target", "id", task.ID, "from", current, "to", ideal)
 				}
 			}
 		}
@@ -463,10 +501,21 @@ Loop:
 		e.stats.TrackFileCompleted()
 		e.stats.TrackDownloadBytes(task.TotalSize)
 
+		completedAt := time.Now()
+		elapsed := completedAt.Sub(startedAt).Seconds()
+		var avgSpeed float64
+		if elapsed > 0 {
+			avgSpeed = float64(task.TotalSize) / elapsed
+		}
+
 		if e.ctx != nil {
 			runtime.EventsEmit(e.ctx, "download:completed", map[string]interface{}{
-				"id":   task.ID,
-				"path": task.SavePath,
+				"id":           task.ID,
+				"path":         task.SavePath,
+				"completed_at": completedAt.Format(time.RFC3339),
+				"started_at":   startedAt.Format(time.RFC3339),
+				"elapsed":      elapsed,
+				"avg_speed":    avgSpeed,
 			})
 		}
 	}

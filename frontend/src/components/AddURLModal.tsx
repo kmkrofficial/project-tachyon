@@ -197,7 +197,7 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
                 </div>
 
                 {step === 'input' || step === 'probing' ? (
-                    <form onSubmit={handleProbe} className="p-6 space-y-6">
+                    <form onSubmit={handleProbe} className="p-6 space-y-4">
                         <div>
                             <label className="block text-xs font-semibold text-th-text-s uppercase tracking-wider mb-2">Source URL</label>
                             <div className="relative">
@@ -221,7 +221,7 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
 
                         </div>
 
-                        <div className="flex justify-end gap-3 pt-2">
+                        <div className="flex justify-end gap-3">
                             <button
                                 type="button"
                                 onClick={handleClose}

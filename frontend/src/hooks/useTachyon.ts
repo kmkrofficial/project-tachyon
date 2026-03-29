@@ -24,11 +24,12 @@ export function useTachyon() {
                             url: t.url,
                             filename: t.filename,
                             progress: t.progress,
-                            size: t.size,
+                            size: t.total_size || t.size || 0,
                             status: t.status as any,
-                            path: t.path,
+                            path: t.save_path || t.path,
                             queue_order: t.queue_order || 0,
                             created_at: t.created_at,
+                            category: t.category,
                             // Derived/Default values
                             speed_MBs: 0,
                             eta: "--"
@@ -58,6 +59,9 @@ export function useTachyon() {
                     path: data.path || prev[data.id]?.path,
                     status: data.status || prev[data.id]?.status || "downloading",
                     url: data.url || prev[data.id]?.url || "",
+                    accept_ranges: data.accept_ranges ?? prev[data.id]?.accept_ranges,
+                    category: data.category || prev[data.id]?.category,
+                    started_at: data.started_at || prev[data.id]?.started_at,
                 },
             }));
         });
@@ -72,7 +76,11 @@ export function useTachyon() {
                     progress: 100,
                     path: data.path,
                     speed_MBs: 0,
-                    eta: "Done"
+                    eta: "Done",
+                    completed_at: data.completed_at,
+                    started_at: data.started_at || prev[data.id]?.started_at,
+                    elapsed: data.elapsed,
+                    avg_speed: data.avg_speed,
                 }
             }))
         });

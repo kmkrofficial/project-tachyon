@@ -1,9 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Download, Upload, Server, Clock, Wifi } from 'lucide-react';
-// @ts-ignore
-import { RunNetworkSpeedTest, GetSpeedTestHistory, ClearSpeedTestHistory } from '../../wailsjs/go/app/App';
-// @ts-ignore
-import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime';
+import React from 'react';
+import { Download, Upload, Server, Clock, Wifi, X } from 'lucide-react';
+import type { SpeedTestState } from '../hooks/useSpeedTest';
 
 interface SpeedTestResult {
     download_mbps: number;
@@ -35,59 +32,12 @@ const phaseLabels: Record<string, string> = {
     error: "Test failed"
 };
 
-export const SpeedTestTab: React.FC = () => {
-    const [isRunning, setIsRunning] = useState(false);
-    const [result, setResult] = useState<SpeedTestResult | null>(null);
-    const [history, setHistory] = useState<SpeedTestResult[]>([]);
-    const [error, setError] = useState("");
-    const [livePhase, setLivePhase] = useState<SpeedTestPhase | null>(null);
+interface SpeedTestTabProps {
+    state: SpeedTestState;
+}
 
-    const fetchHistory = async () => {
-        try {
-            const data = await GetSpeedTestHistory();
-            if (data && Array.isArray(data)) {
-                setHistory(data);
-            }
-        } catch (e) {
-            console.error("Failed to load history", e);
-        }
-    };
-
-    useEffect(() => {
-        fetchHistory();
-
-        // Listen for live phase updates
-        const cleanup = EventsOn("speedtest:phase", (data: SpeedTestPhase) => {
-            setLivePhase(data);
-            if (data.phase === "error") {
-                setError(data.error || "Speed test failed");
-                setIsRunning(false);
-            }
-        });
-
-        return () => {
-            EventsOff("speedtest:phase");
-        };
-    }, []);
-
-    const runTest = async () => {
-        setIsRunning(true);
-        setError("");
-        setResult(null);
-        setLivePhase({ phase: "connecting" });
-        try {
-            const res = await RunNetworkSpeedTest();
-            if (res) {
-                setResult(res);
-                fetchHistory(); // Refresh table
-            }
-        } catch (e: any) {
-            setError(typeof e === 'string' ? e : "Speed test failed. Check your connection.");
-        } finally {
-            setIsRunning(false);
-            setLivePhase(null);
-        }
-    };
+export const SpeedTestTab: React.FC<SpeedTestTabProps> = ({ state }) => {
+    const { isRunning, result, history, error, livePhase, runTest, cancelTest, clearHistory } = state;
 
     // Get current display values (live or final result)
     const displayPing = livePhase?.ping_ms ?? result?.ping_ms ?? null;

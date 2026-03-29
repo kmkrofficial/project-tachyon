@@ -53,12 +53,18 @@ func (ts *TestServer) serveRangeContent(
 		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
 	}
 
+	// Wrap writer with global throttle
+	var out io.Writer = w
+	if ts.throttle != nil {
+		out = &throttledWriter{w: w, throttle: ts.throttle}
+	}
+
 	rangeHeader := r.Header.Get("Range")
 	if rangeHeader == "" {
 		// Full content
 		w.Header().Set("Content-Length", strconv.FormatInt(totalSize, 10))
 		w.WriteHeader(http.StatusOK)
-		written := writePatternData(w, totalSize)
+		written := writePatternData(out, totalSize)
 		ts.recordBytes(written)
 		return
 	}
@@ -76,7 +82,7 @@ func (ts *TestServer) serveRangeContent(
 	w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, totalSize))
 	w.WriteHeader(http.StatusPartialContent)
 
-	written := writePatternDataFrom(w, start, length)
+	written := writePatternDataFrom(out, start, length)
 	ts.recordBytes(written)
 }
 
@@ -147,6 +153,47 @@ func (ts *TestServer) serveThrottled(w http.ResponseWriter, size, bytesPerSec in
 			buf = buf[:remaining]
 		}
 		fillPattern(buf, written)
+		n, err := w.Write(buf)
+		written += int64(n)
+		if err != nil {
+			break
+		}
+		time.Sleep(interval)
+	}
+	ts.recordBytes(written)
+}
+
+// serveThrottledRange serves a range request with per-request speed throttling.
+func (ts *TestServer) serveThrottledRange(w http.ResponseWriter, r *http.Request, totalSize, bytesPerSec int64) {
+	start, end, err := parseRangeHeader(r.Header.Get("Range"), totalSize)
+	if err != nil {
+		w.Header().Set("Content-Range", fmt.Sprintf("bytes */%d", totalSize))
+		http.Error(w, "invalid range", http.StatusRequestedRangeNotSatisfiable)
+		return
+	}
+
+	length := end - start + 1
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Accept-Ranges", "bytes")
+	w.Header().Set("Content-Length", strconv.FormatInt(length, 10))
+	w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, totalSize))
+	w.WriteHeader(http.StatusPartialContent)
+
+	chunkSize := bytesPerSec / 10
+	if chunkSize < 1024 {
+		chunkSize = 1024
+	}
+	interval := time.Second / 10
+
+	buf := make([]byte, chunkSize)
+	var written int64
+
+	for written < length {
+		remaining := length - written
+		if remaining < chunkSize {
+			buf = buf[:remaining]
+		}
+		fillPattern(buf, start+written)
 		n, err := w.Write(buf)
 		written += int64(n)
 		if err != nil {

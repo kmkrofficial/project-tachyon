@@ -1,0 +1,58 @@
+// Manual mock: avoids resolving 1671 sub-module files during vitest.
+// Returns a stub React component for every named import.
+const icon = (name: string) => {
+    const component = (_props: any) => null;
+    component.displayName = name;
+    return component;
+};
+
+export const Activity = icon('Activity');
+export const AlertCircle = icon('AlertCircle');
+export const AlertTriangle = icon('AlertTriangle');
+export const Archive = icon('Archive');
+export const Bot = icon('Bot');
+export const Calendar = icon('Calendar');
+export const Check = icon('Check');
+export const CheckCircle = icon('CheckCircle');
+export const CheckSquare = icon('CheckSquare');
+export const ChevronsLeft = icon('ChevronsLeft');
+export const ChevronsRight = icon('ChevronsRight');
+export const Clock = icon('Clock');
+export const Copy = icon('Copy');
+export const Cpu = icon('Cpu');
+export const Database = icon('Database');
+export const Download = icon('Download');
+export const DownloadCloud = icon('DownloadCloud');
+export const ExternalLink = icon('ExternalLink');
+export const File = icon('File');
+export const FileArchive = icon('FileArchive');
+export const FileCheck = icon('FileCheck');
+export const FileText = icon('FileText');
+export const FileVideo = icon('FileVideo');
+export const Folder = icon('Folder');
+export const FolderOpen = icon('FolderOpen');
+export const Globe = icon('Globe');
+export const HardDrive = icon('HardDrive');
+export const Image = icon('Image');
+export const Info = icon('Info');
+export const LayoutGrid = icon('LayoutGrid');
+export const Link2 = icon('Link2');
+export const Loader2 = icon('Loader2');
+export const Music = icon('Music');
+export const Pause = icon('Pause');
+export const Play = icon('Play');
+export const Plus = icon('Plus');
+export const RotateCcw = icon('RotateCcw');
+export const Save = icon('Save');
+export const Server = icon('Server');
+export const Settings = icon('Settings');
+export const Sliders = icon('Sliders');
+export const Square = icon('Square');
+export const Trash = icon('Trash');
+export const Trash2 = icon('Trash2');
+export const Upload = icon('Upload');
+export const Video = icon('Video');
+export const Wifi = icon('Wifi');
+export const X = icon('X');
+export const Zap = icon('Zap');
+export type LucideIcon = any;

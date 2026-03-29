@@ -19,7 +19,7 @@ import (
 // Configurable constants
 const (
 	DownloadChunkSize = 1 * 1024 * 1024 // 1MB Part Size
-	BufferSize        = 32 * 1024       // 32KB Buffer for CopyBuffer
+	BufferSize        = 256 * 1024      // 256KB Buffer — reduces syscall overhead on fast links
 	MaxWorkersPerTask = 24              // Aggressive upper bound; dynamic tuning chooses active count
 	GenericUserAgent  = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36"
 
@@ -71,6 +71,9 @@ type TachyonEngine struct {
 	// Global goroutine pool for download workers
 	workerPool *WorkerPool
 
+	// Probe cache — reuses recent probes to skip redundant network calls
+	probes *probeCache
+
 	// Custom User-Agent (thread-safe)
 	userAgentMu sync.RWMutex
 	userAgent   string
@@ -110,7 +113,6 @@ func NewEngine(logger *slog.Logger, storage *storage.Storage) *TachyonEngine {
 		activeDownloads: sync.Map{},
 		bufferPool: &sync.Pool{
 			New: func() interface{} {
-				// Allocate 32KB buffer
 				b := make([]byte, BufferSize)
 				return &b
 			},
@@ -130,6 +132,7 @@ func NewEngine(logger *slog.Logger, storage *storage.Storage) *TachyonEngine {
 		stateManager:      NewStateManager(),
 		scanner:           security.NewScanner(logger),
 		workerPool:        NewWorkerPool(64), // Global pool — covers all concurrent download workers
+		probes:            newProbeCache(),
 	}
 	e.workerCond = sync.NewCond(&e.workerMutex)
 

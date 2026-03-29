@@ -65,6 +65,10 @@ func (e *TachyonEngine) selectChunkSize(totalSize int64) int64 {
 }
 
 func (e *TachyonEngine) selectWorkerCount(host string, numParts int, acceptRanges bool) int {
+	return e.selectWorkerCountH2(host, numParts, acceptRanges, false)
+}
+
+func (e *TachyonEngine) selectWorkerCountH2(host string, numParts int, acceptRanges bool, isH2 bool) int {
 	if !acceptRanges {
 		return 1
 	}
@@ -81,6 +85,13 @@ func (e *TachyonEngine) selectWorkerCount(host string, numParts int, acceptRange
 	if maxWorkers < 1 {
 		maxWorkers = 1
 	}
+
+	// HTTP/2 multiplexes all streams over one TCP connection — more workers
+	// cause head-of-line blocking with diminishing returns. Cap at 8.
+	if isH2 && maxWorkers > 8 {
+		maxWorkers = 8
+	}
+
 	if workers > maxWorkers {
 		workers = maxWorkers
 	}

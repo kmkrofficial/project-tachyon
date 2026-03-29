@@ -219,6 +219,16 @@ func (a *App) ProbeURL(url string) (*engine.ProbeResult, error) {
 	return res, nil
 }
 
+// PreProbe fires a speculative background probe so the result is cached
+// when the user actually starts the download. Safe to call on paste/hover.
+func (a *App) PreProbe(url string) {
+	go func() {
+		if _, err := a.engine.ProbeURL(url, "", ""); err != nil {
+			a.logger.Debug("PreProbe failed (non-critical)", "url", url, "error", err)
+		}
+	}()
+}
+
 // CheckHistory checks DB for duplicates
 func (a *App) CheckHistory(url string) bool {
 	exists, err := a.engine.CheckHistory(url)

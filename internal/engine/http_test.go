@@ -19,6 +19,7 @@ func newHTTPEngine() *TachyonEngine {
 		logger:     logger,
 		httpClient: &http.Client{},
 		congestion: network.NewCongestionController(4, 16),
+		probes:     newProbeCache(),
 	}
 }
 

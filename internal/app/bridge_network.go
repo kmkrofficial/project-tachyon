@@ -1,6 +1,9 @@
 package app
 
 import (
+	"context"
+	"time"
+
 	"project-tachyon/internal/analytics"
 	"project-tachyon/internal/network"
 	"project-tachyon/internal/storage"
@@ -11,6 +14,24 @@ import (
 
 // RunNetworkSpeedTest performs a network speed test with live updates
 func (a *App) RunNetworkSpeedTest() *network.SpeedTestResult {
+	// Create a cancellable context for this test
+	ctx, cancel := context.WithTimeout(a.ctx, 60*time.Second)
+
+	a.speedTestMu.Lock()
+	// Cancel any previous running test
+	if a.speedTestCancel != nil {
+		a.speedTestCancel()
+	}
+	a.speedTestCancel = cancel
+	a.speedTestMu.Unlock()
+
+	defer func() {
+		cancel()
+		a.speedTestMu.Lock()
+		a.speedTestCancel = nil
+		a.speedTestMu.Unlock()
+	}()
+
 	// Emit phase updates to frontend during speed test
 	onPhase := func(phase network.SpeedTestPhase) {
 		runtime.EventsEmit(a.ctx, "speedtest:phase", map[string]interface{}{
@@ -23,13 +44,20 @@ func (a *App) RunNetworkSpeedTest() *network.SpeedTestResult {
 		})
 	}
 
-	res, err := network.RunSpeedTestWithEvents(onPhase)
+	res, err := network.RunSpeedTestWithContext(ctx, onPhase)
 	if err != nil {
 		a.logger.Error("Speed test failed", "error", err)
-		runtime.EventsEmit(a.ctx, "speedtest:phase", map[string]interface{}{
-			"phase": "error",
-			"error": err.Error(),
-		})
+		// Only emit error if not cancelled
+		if ctx.Err() == nil {
+			runtime.EventsEmit(a.ctx, "speedtest:phase", map[string]interface{}{
+				"phase": "error",
+				"error": err.Error(),
+			})
+		} else {
+			runtime.EventsEmit(a.ctx, "speedtest:phase", map[string]interface{}{
+				"phase": "cancelled",
+			})
+		}
 		return nil
 	}
 
@@ -49,6 +77,16 @@ func (a *App) RunNetworkSpeedTest() *network.SpeedTestResult {
 	}
 
 	return res
+}
+
+// CancelSpeedTest cancels a running speed test
+func (a *App) CancelSpeedTest() {
+	a.speedTestMu.Lock()
+	defer a.speedTestMu.Unlock()
+	if a.speedTestCancel != nil {
+		a.speedTestCancel()
+		a.speedTestCancel = nil
+	}
 }
 
 // GetSpeedTestHistory returns the last 10 speed tests

@@ -5,6 +5,7 @@ import { Checkbox } from './common/Checkbox';
 import prettyBytes from 'pretty-bytes';
 import { cn } from '../utils';
 import { ContextMenu } from './ContextMenu';
+import { DownloadDetailPanel } from './DownloadDetailPanel';
 import { useSettingsStore } from '../store';
 
 interface DownloadsTableProps {
@@ -53,6 +54,7 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
     const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
     const [bulkDeleteFile, setBulkDeleteFile] = useState(false);
     const [selectMode, setSelectMode] = useState(false);
+    const [detailId, setDetailId] = useState<string | null>(null);
 
     const handlePause = useCallback(async (id: string) => {
         try { await window.go.app.App.PauseDownload(id); } catch (e) { console.error(e); }
@@ -191,10 +193,14 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
                                     key={item.id}
                                     className={cn(
                                         "group hover:bg-th-raised/50 transition-colors cursor-default",
-                                        isSelected ? "bg-th-accent/10" : ""
+                                        isSelected ? "bg-th-accent/10" : "",
+                                        detailId === item.id && !selectMode ? "bg-th-accent/5 ring-1 ring-inset ring-th-accent/20" : ""
                                     )}
                                     onContextMenu={e => handleContextMenu(e, item.id)}
-                                    onClick={() => selectMode && toggleSelect(item.id)}
+                                    onClick={() => {
+                                        if (selectMode) { toggleSelect(item.id); return; }
+                                        setDetailId(prev => prev === item.id ? null : item.id);
+                                    }}
                                     onDoubleClick={() => {
                                         if (item.status === 'completed' && !selectMode) {
                                             const action = useSettingsStore.getState().completedClickAction;
@@ -275,14 +281,14 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
                 </table>
 
                 {data.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-20 text-th-text-m">
+                    <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-th-text-m">
                         <div className="w-14 h-14 bg-th-raised/50 rounded-full flex items-center justify-center mb-3">
                             <File size={28} className="opacity-50" />
                         </div>
                         <p className="font-medium text-lg">No downloads yet</p>
                         <p className="text-sm text-center max-w-xs">Drag + drop a link, press Ctrl+V, or use the Add Download button to get started</p>
                     </div>
-                )}
+                ))
             </div>
 
             {/* Bulk Action Bar */}
@@ -302,6 +308,12 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
                     </div>
                 </div>
             )}
+
+            {/* Download Detail Panel */}
+            {detailId && !selectMode && (() => {
+                const detailItem = data.find(d => d.id === detailId);
+                return detailItem ? <DownloadDetailPanel item={detailItem} onClose={() => setDetailId(null)} /> : null;
+            })()}
 
             {/* Delete Confirmation Modal */}
             {deleteConfirmId && (

@@ -5,6 +5,7 @@ package app
 import (
 	"context"
 	"log/slog"
+	"sync"
 
 	"project-tachyon/internal/config"
 	"project-tachyon/internal/engine"
@@ -24,6 +25,9 @@ type App struct {
 	cfg          *config.ConfigManager
 	audit        *security.AuditLogger
 	isQuitting   bool
+
+	speedTestMu     sync.Mutex
+	speedTestCancel context.CancelFunc
 }
 
 // NewApp creates a new App application struct with all dependencies injected.
@@ -96,4 +100,3 @@ func (a *App) ShowApp() {
 func (a *App) GetContext() context.Context {
 	return a.ctx
 }
-

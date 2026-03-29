@@ -89,6 +89,8 @@ function App() {
             if (tag === 'INPUT' || tag === 'TEXTAREA') return;
             const text = e.clipboardData?.getData('text')?.trim();
             if (text && isValidUrl(text) && !isModalOpen) {
+                // Fire speculative background probe so result is cached by the time download starts
+                window.go?.app?.App?.PreProbe?.(text);
                 if (quickDownload) {
                     addDownload(text, undefined, undefined, downloadPath || undefined);
                 } else {
@@ -112,6 +114,7 @@ function App() {
             const text = e.dataTransfer?.getData('text/uri-list') || e.dataTransfer?.getData('text/plain') || '';
             const trimmed = text.trim();
             if (trimmed && isValidUrl(trimmed) && !isModalOpen) {
+                window.go?.app?.App?.PreProbe?.(trimmed);
                 if (quickDownload) {
                     addDownload(trimmed, undefined, undefined, downloadPath || undefined);
                 } else {

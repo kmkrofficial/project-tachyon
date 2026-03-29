@@ -29,6 +29,7 @@ type ProbeResult struct {
 	AcceptRanges bool   `json:"accept_ranges"`
 	ETag         string `json:"etag"`
 	LastModified string `json:"last_modified"`
+	IsHTTP2      bool   `json:"is_http2"`
 }
 
 // newRequest creates an HTTP request with configured headers
@@ -83,14 +84,22 @@ func (e *TachyonEngine) newRequest(method, urlStr string, headersStr string, coo
 	return req, nil
 }
 
-// ProbeURL checks the URL using HEAD first, falling back to GET+Range if needed
+// ProbeURL checks the URL using HEAD first, falling back to GET+Range if needed.
+// Results are cached so the executor can skip re-probing recently probed URLs.
 func (e *TachyonEngine) ProbeURL(urlStr string, headersStr string, cookiesStr string) (*ProbeResult, error) {
+	// Check cache first (frontend modal may have just probed this URL)
+	if cached := e.probes.Get(urlStr); cached != nil {
+		e.logger.Info("Using cached probe result", "url", urlStr)
+		return cached, nil
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	// 1. Try HEAD first (fast, no body transfer)
 	result, err := e.probeHEAD(ctx, urlStr, headersStr, cookiesStr)
 	if err == nil && result.Size > 0 {
+		e.probes.Put(urlStr, result)
 		return result, nil
 	}
 
@@ -101,7 +110,11 @@ func (e *TachyonEngine) ProbeURL(urlStr string, headersStr string, cookiesStr st
 
 	// 2. Fallback to GET+Range for servers that don't support HEAD properly
 	e.logger.Info("HEAD probe insufficient, falling back to GET+Range", "url", urlStr)
-	return e.probeGETRange(ctx, urlStr, headersStr, cookiesStr)
+	result, err = e.probeGETRange(ctx, urlStr, headersStr, cookiesStr)
+	if err == nil && result != nil {
+		e.probes.Put(urlStr, result)
+	}
+	return result, err
 }
 
 // probeHEAD performs a lightweight HEAD request to gather file metadata
@@ -160,7 +173,7 @@ func (e *TachyonEngine) parseProbeResponse(resp *http.Response) *ProbeResult {
 	}
 	if filename == "" {
 		filename = filepath.Base(resp.Request.URL.Path)
-		if filename == "." || filename == "/" {
+		if filename == "." || filename == "/" || filename == "\\" {
 			filename = "unknown_file"
 		}
 	}
@@ -190,6 +203,7 @@ func (e *TachyonEngine) parseProbeResponse(resp *http.Response) *ProbeResult {
 		AcceptRanges: acceptRanges,
 		ETag:         resp.Header.Get("ETag"),
 		LastModified: resp.Header.Get("Last-Modified"),
+		IsHTTP2:      resp.ProtoMajor == 2,
 	}
 }
 

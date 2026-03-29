@@ -43,6 +43,11 @@ func RunSpeedTest() (*SpeedTestResult, error) {
 func RunSpeedTestWithEvents(onPhase PhaseCallback) (*SpeedTestResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
+	return RunSpeedTestWithContext(ctx, onPhase)
+}
+
+// RunSpeedTestWithContext performs a speed test using the provided context for cancellation
+func RunSpeedTestWithContext(ctx context.Context, onPhase PhaseCallback) (*SpeedTestResult, error) {
 
 	// Phase: Connecting
 	if onPhase != nil {
@@ -54,11 +59,17 @@ func RunSpeedTestWithEvents(onPhase PhaseCallback) (*SpeedTestResult, error) {
 	if err != nil {
 		return nil, fmt.Errorf("no internet connection")
 	}
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
 
 	// Fetch server list
 	serverList, err := speedtest.FetchServers()
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch servers")
+	}
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
 	}
 
 	// Get servers sorted by distance (closest first)

@@ -15,11 +15,16 @@ type TestServer struct {
 	requestCount atomic.Int64
 	bytesServed  atomic.Int64
 	log          *slog.Logger
+	throttle     *globalThrottle
 }
 
 // NewTestServer creates a new test server instance.
-func NewTestServer(logger *slog.Logger) *TestServer {
-	return &TestServer{log: logger}
+func NewTestServer(logger *slog.Logger, bandwidthBPS int64) *TestServer {
+	var th *globalThrottle
+	if bandwidthBPS > 0 {
+		th = newGlobalThrottle(bandwidthBPS)
+	}
+	return &TestServer{log: logger, throttle: th}
 }
 
 // Handler returns the HTTP handler for the test server.
@@ -78,6 +83,22 @@ func (ts *TestServer) handleSlow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ts.log.Info("serving throttled", "handler", "slow", "size", size, "speed_bps", speed, "remote", r.RemoteAddr)
+
+	// HEAD request — return metadata only (no body, no throttle)
+	if r.Method == "HEAD" {
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
+		w.Header().Set("Accept-Ranges", "bytes")
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// Range request — serve partial content with throttle
+	if r.Header.Get("Range") != "" {
+		ts.serveThrottledRange(w, r, size, speed)
+		return
+	}
+
 	ts.serveThrottled(w, size, speed)
 }
 
