@@ -199,7 +199,7 @@ export function useTachyon() {
                         size: size || 0,
                         speed_MBs: 0,
                         eta: "--",
-                        status: filename ? "downloading" : "pending",
+                        status: options?.start_time ? "scheduled" : (filename ? "downloading" : "pending"),
                         path: path,
                         created_at: new Date().toISOString()
                     }

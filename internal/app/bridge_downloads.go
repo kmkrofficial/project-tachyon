@@ -186,6 +186,12 @@ func (a *App) SetGlobalSpeedLimit(bytesPerSec int) {
 	a.engine.SetGlobalLimit(bytesPerSec)
 }
 
+// UpdateScheduledTime updates the start time for all scheduled downloads
+func (a *App) UpdateScheduledTime(startTimeRFC3339 string) error {
+	a.logger.Info("frontend_request", "method", "UpdateScheduledTime", "start_time", startTimeRFC3339)
+	return a.engine.UpdateScheduledTime(startTimeRFC3339)
+}
+
 // SetMaxConcurrentDownloads sets the maximum number of concurrent downloads
 func (a *App) SetMaxConcurrentDownloads(n int) {
 	a.logger.Info("frontend_request", "method", "SetMaxConcurrentDownloads", "n", n)

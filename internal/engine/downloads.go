@@ -315,6 +315,43 @@ func (e *TachyonEngine) ResumeAllDownloads() {
 	}
 }
 
+// UpdateScheduledTime updates the start_time for all queued "scheduled" tasks.
+// Called when the user changes the global scheduler time in the UI.
+func (e *TachyonEngine) UpdateScheduledTime(newStartTime string) error {
+	if _, err := time.Parse(time.RFC3339, newStartTime); err != nil {
+		return fmt.Errorf("invalid start_time format: %w", err)
+	}
+
+	tasks, err := e.storage.GetAllTasks()
+	if err != nil {
+		return err
+	}
+
+	for _, task := range tasks {
+		if task.Status != "scheduled" {
+			continue
+		}
+		task.StartTime = newStartTime
+		task.UpdatedAt = time.Now().Format(time.RFC3339)
+		if err := e.storage.SaveTask(task); err != nil {
+			e.logger.Error("Failed to update scheduled time", "id", task.ID, "error", err)
+			continue
+		}
+
+		// Also update the in-queue copy so the scheduler sees the new time
+		queueItems := e.queue.GetAll()
+		for _, qi := range queueItems {
+			if qi.ID == task.ID {
+				qi.StartTime = newStartTime
+			}
+		}
+	}
+
+	// Wake the queue worker so it can re-evaluate with the new times
+	e.queue.Broadcast()
+	return nil
+}
+
 // UpdateDownloadURL updates the URL for a task that requires authentication refresh
 // This is used when a download link has expired (HTTP 403) and needs a new URL
 func (e *TachyonEngine) UpdateDownloadURL(taskID, newURL string) error {

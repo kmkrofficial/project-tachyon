@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { Plus, Play, Pause, Clock, Trash2 } from 'lucide-react';
 import { cn } from '../utils';
 import { useSettingsStore } from '../store';
 import { Dropdown } from './common/Dropdown';
+import * as AppBinding from '../../wailsjs/go/app/App';
 
 const pageTitles: Record<string, string> = {
     all: 'Dashboard',
@@ -41,9 +42,17 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onAddDownload, onPaus
         return [parseInt(parts[0]) || 0, parseInt(parts[1]) || 0];
     }, [schedulerTime]);
 
-    const updateTime = (h: number, m: number) => {
-        setSchedulerTime(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
-    };
+    const updateTime = useCallback((h: number, m: number) => {
+        const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        setSchedulerTime(timeStr);
+
+        // Compute the next occurrence and update all scheduled downloads on the backend
+        const now = new Date();
+        const target = new Date();
+        target.setHours(h, m, 0, 0);
+        if (target <= now) target.setDate(target.getDate() + 1);
+        AppBinding.UpdateScheduledTime?.(target.toISOString());
+    }, [setSchedulerTime]);
 
     return (
         <header className={cn(
