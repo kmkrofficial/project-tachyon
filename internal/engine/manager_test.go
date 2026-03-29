@@ -102,9 +102,9 @@ func TestRecoverInterruptedDownloads_AbruptClose(t *testing.T) {
 	// Simulate abrupt close: downloads stuck in "downloading" and "pending"
 	s.SaveTask(storage.DownloadTask{ID: "d1", Status: "downloading", Downloaded: 5000, Progress: 50})
 	s.SaveTask(storage.DownloadTask{ID: "d2", Status: "pending"})
-	s.SaveTask(storage.DownloadTask{ID: "d3", Status: "paused"})       // manually paused
-	s.SaveTask(storage.DownloadTask{ID: "d4", Status: "error"})        // was in error
-	s.SaveTask(storage.DownloadTask{ID: "d5", Status: "completed"})    // done
+	s.SaveTask(storage.DownloadTask{ID: "d3", Status: "paused"})    // manually paused
+	s.SaveTask(storage.DownloadTask{ID: "d4", Status: "error"})     // was in error
+	s.SaveTask(storage.DownloadTask{ID: "d5", Status: "completed"}) // done
 
 	e.RecoverInterruptedDownloads()
 
@@ -144,7 +144,7 @@ func TestRecoverInterruptedDownloads_GracefulShutdown(t *testing.T) {
 
 	// Simulate graceful shutdown: downloads saved as paused, auto_resume_ids set
 	s.SaveTask(storage.DownloadTask{ID: "g1", Status: "paused", Downloaded: 8000, Progress: 80})
-	s.SaveTask(storage.DownloadTask{ID: "g2", Status: "paused"})  // was manually paused before shutdown
+	s.SaveTask(storage.DownloadTask{ID: "g2", Status: "paused"}) // was manually paused before shutdown
 	s.SetString("auto_resume_ids", "g1")
 
 	e.RecoverInterruptedDownloads()

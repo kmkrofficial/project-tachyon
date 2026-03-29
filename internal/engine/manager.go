@@ -258,14 +258,19 @@ func (e *TachyonEngine) RecoverInterruptedDownloads() {
 	for _, task := range tasks {
 		switch task.Status {
 		case "downloading", "pending", "probing", "merging":
-			// Abrupt close — these were actively running
+			// Abrupt close — move to paused, only auto-resume if we have
+			// an explicit marker from a prior graceful shutdown
 			task.Status = "paused"
 			if err := e.storage.SaveTask(task); err != nil {
 				e.logger.Error("Failed to pause interrupted download", "id", task.ID, "error", err)
 				continue
 			}
-			toResume = append(toResume, task.ID)
-			e.logger.Info("Recovered interrupted download", "id", task.ID, "filename", task.Filename)
+			if autoResumeSet[task.ID] {
+				toResume = append(toResume, task.ID)
+				e.logger.Info("Recovered interrupted download (will auto-resume)", "id", task.ID, "filename", task.Filename)
+			} else {
+				e.logger.Info("Recovered interrupted download (left paused)", "id", task.ID, "filename", task.Filename)
+			}
 
 		case "paused":
 			// Graceful shutdown — only auto-resume if it was active before shutdown
