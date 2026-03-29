@@ -38,7 +38,7 @@ func NewCircuitBreaker(failThreshold int, cooldown time.Duration) *CircuitBreake
 	if failThreshold < 1 {
 		failThreshold = 5
 	}
-	if cooldown < time.Second {
+	if cooldown <= 0 {
 		cooldown = 30 * time.Second
 	}
 	return &CircuitBreaker{

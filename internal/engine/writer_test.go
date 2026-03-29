@@ -66,7 +66,7 @@ func TestMergePartFiles(t *testing.T) {
 
 	// Create 3 part files
 	for i := 0; i < 3; i++ {
-		pw, err := newPartWriter(tmpDir, "merge-task", i, &downloaded)
+		pw, err := newPartWriter(tmpDir, "merge-task", int64(i)*100, &downloaded)
 		if err != nil {
 			t.Fatal(err)
 		}

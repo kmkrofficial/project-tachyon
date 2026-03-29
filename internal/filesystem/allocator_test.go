@@ -193,7 +193,7 @@ func TestFindAvailablePath_WithConflict(t *testing.T) {
 	os.WriteFile(original, []byte("data"), 0644)
 
 	result := FindAvailablePath(original)
-	expected := filepath.Join(tmpDir, "exists_2.txt")
+	expected := filepath.Join(tmpDir, "exists (1).txt")
 	if result != expected {
 		t.Errorf("expected %s, got %s", expected, result)
 	}
@@ -203,10 +203,10 @@ func TestFindAvailablePath_MultipleConflicts(t *testing.T) {
 	tmpDir := t.TempDir()
 	base := filepath.Join(tmpDir, "file.txt")
 	os.WriteFile(base, []byte("1"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "file_2.txt"), []byte("2"), 0644)
+	os.WriteFile(filepath.Join(tmpDir, "file (1).txt"), []byte("2"), 0644)
 
 	result := FindAvailablePath(base)
-	expected := filepath.Join(tmpDir, "file_3.txt")
+	expected := filepath.Join(tmpDir, "file (2).txt")
 	if result != expected {
 		t.Errorf("expected %s, got %s", expected, result)
 	}

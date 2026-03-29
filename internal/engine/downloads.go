@@ -28,11 +28,39 @@ func (e *TachyonEngine) GetQueuedDownloads() []*storage.DownloadTask {
 	return e.queue.GetAll()
 }
 
+// getReservedPaths collects save paths from queued and active downloads
+func (e *TachyonEngine) getReservedPaths() map[string]bool {
+	reserved := make(map[string]bool)
+	for _, task := range e.queue.GetAll() {
+		if task.SavePath != "" {
+			reserved[task.SavePath] = true
+		}
+	}
+	// Also check DB for in-flight tasks (downloading, probing, pending, scheduled)
+	if tasks, err := e.storage.GetAllTasks(); err == nil {
+		for _, t := range tasks {
+			switch t.Status {
+			case "downloading", "probing", "pending", "scheduled", "merging", "verifying":
+				if t.SavePath != "" {
+					reserved[t.SavePath] = true
+				}
+			}
+		}
+	}
+	return reserved
+}
+
 // StartDownload initiates a new download
 func (e *TachyonEngine) StartDownload(urlStr string, destPath string, customFilename string, options map[string]string) (string, error) {
 	// Validate URL scheme, length, and host
-	if err := ValidateURL(urlStr); err != nil {
-		return "", err
+	if e.allowLoopback {
+		if err := ValidateURLAllowLoopback(urlStr); err != nil {
+			return "", err
+		}
+	} else {
+		if err := ValidateURL(urlStr); err != nil {
+			return "", err
+		}
 	}
 
 	downloadID := uuid.New().String()
@@ -59,8 +87,10 @@ func (e *TachyonEngine) StartDownload(urlStr string, destPath string, customFile
 	}
 
 	organizedPath, _ := filesystem.GetOrganizedPath(destPath, guessedFilename)
-	// Find available path with _2, _3 suffix if collision
-	finalPath := filesystem.FindAvailablePath(organizedPath)
+	// Collect paths already claimed by queued/active downloads
+	reservedPaths := e.getReservedPaths()
+	// Find available path checking both disk and in-flight downloads
+	finalPath := filesystem.FindAvailablePathExcluding(organizedPath, reservedPaths)
 	category := filesystem.GetCategory(guessedFilename)
 
 	// Handle Scheduled Start
@@ -122,10 +152,12 @@ func (e *TachyonEngine) PauseDownload(id string) error {
 		if err == nil && (task.Status == "pending" || task.Status == "downloading") {
 			task.Status = "paused"
 			e.storage.SaveTask(task)
-			// Emit paused event to frontend
 			if e.ctx != nil {
 				runtime.EventsEmit(e.ctx, "download:paused", map[string]interface{}{
-					"id": id,
+					"id":         id,
+					"downloaded": task.Downloaded,
+					"progress":   task.Progress,
+					"total":      task.TotalSize,
 				})
 			}
 		}
@@ -156,7 +188,7 @@ func (e *TachyonEngine) ResumeDownload(id string) error {
 	}
 
 	// Only resume if it's in a resumable state
-	resumableStates := map[string]bool{"paused": true, "stopped": true, "error": true}
+	resumableStates := map[string]bool{"paused": true, "stopped": true, "error": true, "scheduled": true}
 	if !resumableStates[task.Status] {
 		return fmt.Errorf("cannot resume download in status: %s", task.Status)
 	}
@@ -182,6 +214,7 @@ func (e *TachyonEngine) ResumeDownload(id string) error {
 
 	// Update status to pending and re-queue
 	task.Status = "pending"
+	task.StartTime = "" // Clear schedule time so it starts immediately
 	task.UpdatedAt = time.Now().Format(time.RFC3339)
 	if err := e.storage.SaveTask(task); err != nil {
 		return err
@@ -198,6 +231,9 @@ func (e *TachyonEngine) ResumeDownload(id string) error {
 			"status":      "pending",
 			"filename":    task.Filename,
 			"queue_order": task.QueueOrder,
+			"downloaded":  task.Downloaded,
+			"progress":    task.Progress,
+			"total":       task.TotalSize,
 		})
 	}
 

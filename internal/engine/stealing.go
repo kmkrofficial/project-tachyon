@@ -2,6 +2,7 @@ package engine
 
 import (
 	"sync"
+	"sync/atomic"
 )
 
 // inflightTracker tracks which parts are currently being downloaded,
@@ -13,7 +14,8 @@ type inflightTracker struct {
 
 type inflightPart struct {
 	part            DownloadPart
-	bytesDownloaded int64 // Approximate — updated by worker
+	bytesDownloaded int64        // Approximate — updated by worker
+	adjustedEnd     atomic.Int64 // Reduced EndOffset after steal (-1 = not stolen)
 }
 
 func newInflightTracker() *inflightTracker {
@@ -24,7 +26,9 @@ func newInflightTracker() *inflightTracker {
 func (t *inflightTracker) Start(part DownloadPart) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.parts[part.ID] = &inflightPart{part: part}
+	ip := &inflightPart{part: part}
+	ip.adjustedEnd.Store(-1)
+	t.parts[part.ID] = ip
 }
 
 // Complete removes a part from the in-flight set.
@@ -41,6 +45,16 @@ func (t *inflightTracker) UpdateProgress(id int, downloaded int64) {
 	if p, ok := t.parts[id]; ok {
 		p.bytesDownloaded = downloaded
 	}
+}
+
+// AdjustedEnd returns the reduced EndOffset for a part, or -1 if not stolen.
+func (t *inflightTracker) AdjustedEnd(id int) int64 {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if p, ok := t.parts[id]; ok {
+		return p.adjustedEnd.Load()
+	}
+	return -1
 }
 
 // StealLargest finds the in-flight part with the most remaining bytes and
@@ -74,10 +88,10 @@ func (t *inflightTracker) StealLargest(nextID int) (*DownloadPart, int) {
 		return nil, 0
 	}
 
-	// Bisect: shrink original, return second half
+	// Bisect: signal original worker to stop early, return second half
 	originalEnd := bestPart.part.EndOffset
 	midpoint := bestPart.part.StartOffset + bestPart.bytesDownloaded + (bestRemaining / 2)
-	bestPart.part.EndOffset = midpoint
+	bestPart.adjustedEnd.Store(midpoint)
 
 	stolen := DownloadPart{
 		ID:          nextID,

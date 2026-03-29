@@ -83,8 +83,14 @@ func (o *SmartOrganizer) FindAvailablePath(basePath string) string {
 }
 
 func FindAvailablePath(basePath string) string {
+	return FindAvailablePathExcluding(basePath, nil)
+}
+
+func FindAvailablePathExcluding(basePath string, reserved map[string]bool) string {
 	if _, err := os.Stat(basePath); os.IsNotExist(err) {
-		return basePath
+		if !reserved[basePath] {
+			return basePath
+		}
 	}
 	ext := filepath.Ext(basePath)
 
@@ -95,7 +101,9 @@ func FindAvailablePath(basePath string) string {
 	for i := 1; i < 1000; i++ {
 		candidate := filepath.Join(dir, fmt.Sprintf("%s (%d)%s", nameOnly, i, ext))
 		if _, err := os.Stat(candidate); os.IsNotExist(err) {
-			return candidate
+			if !reserved[candidate] {
+				return candidate
+			}
 		}
 	}
 	// Fallback

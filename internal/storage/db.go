@@ -287,9 +287,7 @@ func (s *Storage) GetStringList(key string) ([]string, error) {
 	if val == "" {
 		return []string{}, nil
 	}
-	// Simple comma split, could be JSON in future
-	// For now assuming simple string values
-	return []string{val}, nil
+	return splitAndTrim(val), nil
 }
 
 // ============= Factory Reset =============

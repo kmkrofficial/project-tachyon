@@ -24,23 +24,51 @@ type DownloadPart struct {
 
 // downloadWorker consumes parts and downloads them to individual temp files.
 func (e *TachyonEngine) downloadWorker(ctx context.Context, taskID string, urlStr string, host string, tempDir string, partCh <-chan DownloadPart, retryCh chan DownloadPart, partDoneCh chan<- int, errCh chan<- error, downloadedBytes *int64, errorCount *atomic.Int32, headersStr string, cookiesStr string, strictRanges bool, inflight *inflightTracker, nextStealID *atomic.Int32) {
+	partChOpen := true
 	for {
+		if ctx.Err() != nil {
+			return
+		}
+
+		// Phase 1: consume from primary channel and retries
+		if partChOpen {
+			select {
+			case <-ctx.Done():
+				return
+			case part, ok := <-retryCh:
+				if ok {
+					e.processDownloadPart(ctx, taskID, urlStr, host, tempDir, part, retryCh, partDoneCh, errCh, downloadedBytes, errorCount, headersStr, cookiesStr, strictRanges, inflight)
+					continue
+				}
+			case part, ok := <-partCh:
+				if !ok {
+					partChOpen = false
+					continue // switch to phase 2
+				}
+				e.processDownloadPart(ctx, taskID, urlStr, host, tempDir, part, retryCh, partDoneCh, errCh, downloadedBytes, errorCount, headersStr, cookiesStr, strictRanges, inflight)
+				continue
+			}
+		}
+
+		// Phase 2: primary channel drained — drain retries, then try stealing
 		select {
 		case <-ctx.Done():
 			return
-		case part, ok := <-partCh:
-			if !ok {
-				if strictRanges {
-					stolen, _ := inflight.StealLargest(int(nextStealID.Add(1) - 1))
-					if stolen != nil {
-						e.processDownloadPart(ctx, taskID, urlStr, host, tempDir, *stolen, retryCh, partDoneCh, errCh, downloadedBytes, errorCount, headersStr, cookiesStr, strictRanges, inflight)
-						continue
-					}
-				}
-				return
-			}
-			e.processDownloadPart(ctx, taskID, urlStr, host, tempDir, part, retryCh, partDoneCh, errCh, downloadedBytes, errorCount, headersStr, cookiesStr, strictRanges, inflight)
+		case rp := <-retryCh:
+			e.processDownloadPart(ctx, taskID, urlStr, host, tempDir, rp, retryCh, partDoneCh, errCh, downloadedBytes, errorCount, headersStr, cookiesStr, strictRanges, inflight)
+			continue
+		case <-time.After(50 * time.Millisecond):
+			// Brief wait for pending retries before trying to steal or exit
 		}
+
+		if strictRanges {
+			stolen, _ := inflight.StealLargest(int(nextStealID.Add(1) - 1))
+			if stolen != nil {
+				e.processDownloadPart(ctx, taskID, urlStr, host, tempDir, *stolen, retryCh, partDoneCh, errCh, downloadedBytes, errorCount, headersStr, cookiesStr, strictRanges, inflight)
+				continue
+			}
+		}
+		return
 	}
 }
 
@@ -64,7 +92,7 @@ func (e *TachyonEngine) processDownloadPart(ctx context.Context, taskID string, 
 	}
 
 	startedAt := time.Now()
-	err := e.downloadPart(ctx, taskID, urlStr, tempDir, part, BufferSize, headersStr, cookiesStr, strictRanges, downloadedBytes)
+	err := e.downloadPart(ctx, taskID, urlStr, tempDir, part, BufferSize, headersStr, cookiesStr, strictRanges, downloadedBytes, inflight)
 	e.congestion.RecordOutcome(host, time.Since(startedAt), err)
 
 	if err != nil {
@@ -133,7 +161,7 @@ func adaptiveStallTimeout(recentBytesPerSec float64, bufSize int) time.Duration 
 }
 
 // downloadPart downloads a single part into its own temp file.
-func (e *TachyonEngine) downloadPart(ctx context.Context, taskID string, urlStr string, tempDir string, part DownloadPart, chunkSize int, headersStr string, cookiesStr string, strictRanges bool, downloadedBytes *int64) error {
+func (e *TachyonEngine) downloadPart(ctx context.Context, taskID string, urlStr string, tempDir string, part DownloadPart, chunkSize int, headersStr string, cookiesStr string, strictRanges bool, downloadedBytes *int64, inflight *inflightTracker) error {
 	req, err := e.newRequest("GET", urlStr, headersStr, cookiesStr)
 	if err != nil {
 		return err
@@ -161,7 +189,7 @@ func (e *TachyonEngine) downloadPart(ctx context.Context, taskID string, urlStr 
 	}
 
 	// Create temp file for this part
-	pw, err := newPartWriter(tempDir, taskID, part.ID, downloadedBytes)
+	pw, err := newPartWriter(tempDir, taskID, part.StartOffset, downloadedBytes)
 	if err != nil {
 		return err
 	}
@@ -193,10 +221,6 @@ func (e *TachyonEngine) downloadPart(ctx context.Context, taskID string, urlStr 
 	readCh := make(chan readResult, 1)
 
 	for bytesReadTotal < totalBytesToRead {
-		if err := e.bandwidthManager.Wait(ctx, taskID, chunkSize); err != nil {
-			return err
-		}
-
 		stall := adaptiveStallTimeout(recentSpeed, chunkSize)
 
 		go func() {
@@ -222,12 +246,30 @@ func (e *TachyonEngine) downloadPart(ctx context.Context, taskID string, urlStr 
 		}
 
 		if rr.n > 0 {
-			if writeErr := pw.Write(buf[:rr.n]); writeErr != nil {
+			if err := e.bandwidthManager.Wait(ctx, taskID, rr.n); err != nil {
+				return err
+			}
+
+			// Check if this part was stolen (EndOffset reduced by work-stealing).
+			// Only write up to the adjusted boundary to avoid overlap.
+			writeN := rr.n
+			if adj := inflight.AdjustedEnd(part.ID); adj >= 0 {
+				newLimit := adj - part.StartOffset + 1
+				if bytesReadTotal+int64(writeN) > newLimit {
+					writeN = int(newLimit - bytesReadTotal)
+					if writeN <= 0 {
+						break // Nothing more to write for this part
+					}
+				}
+				totalBytesToRead = newLimit
+			}
+
+			if writeErr := pw.Write(buf[:writeN]); writeErr != nil {
 				return writeErr
 			}
-			bytesReadTotal += int64(rr.n)
+			bytesReadTotal += int64(writeN)
 
-			lastSpeedBytes += int64(rr.n)
+			lastSpeedBytes += int64(writeN)
 			elapsed := time.Since(lastSpeedCheck).Seconds()
 			if elapsed >= 1.0 {
 				recentSpeed = float64(lastSpeedBytes) / elapsed

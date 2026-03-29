@@ -52,6 +52,33 @@ func ValidateURL(rawURL string) error {
 	return nil
 }
 
+// ValidateURLAllowLoopback validates a URL like ValidateURL but permits loopback
+// addresses. Used only during integration tests with local test servers.
+func ValidateURLAllowLoopback(rawURL string) error {
+	if rawURL == "" {
+		return fmt.Errorf("empty URL")
+	}
+	if len(rawURL) > maxURLLength {
+		return fmt.Errorf("URL exceeds maximum length of %d characters", maxURLLength)
+	}
+
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return fmt.Errorf("unsupported URL scheme %q: only http and https are allowed", u.Scheme)
+	}
+
+	if u.Host == "" {
+		return fmt.Errorf("URL has no host")
+	}
+
+	return nil
+}
+
 // SanitizeFilename removes path traversal components and dangerous characters
 // from a user-supplied filename, returning a safe basename.
 func SanitizeFilename(name string) string {

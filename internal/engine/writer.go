@@ -24,9 +24,9 @@ type partWriter struct {
 }
 
 // newPartWriter creates a temp file for the given part under tempDir.
-// Format: <taskID>.part.<partID>
-func newPartWriter(tempDir, taskID string, partID int, downloadedBytes *int64) (*partWriter, error) {
-	name := fmt.Sprintf("%s.part.%d", taskID, partID)
+// Format: <taskID>.part.<startOffset>
+func newPartWriter(tempDir, taskID string, startOffset int64, downloadedBytes *int64) (*partWriter, error) {
+	name := fmt.Sprintf("%s.part.%d", taskID, startOffset)
 	path := filepath.Join(tempDir, name)
 
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
@@ -43,8 +43,8 @@ func newPartWriter(tempDir, taskID string, partID int, downloadedBytes *int64) (
 }
 
 // openPartWriter opens an existing part file for append (resume).
-func openPartWriter(tempDir, taskID string, partID int, downloadedBytes *int64) (*partWriter, error) {
-	name := fmt.Sprintf("%s.part.%d", taskID, partID)
+func openPartWriter(tempDir, taskID string, startOffset int64, downloadedBytes *int64) (*partWriter, error) {
+	name := fmt.Sprintf("%s.part.%d", taskID, startOffset)
 	path := filepath.Join(tempDir, name)
 
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_APPEND, 0666)
@@ -97,9 +97,10 @@ func (pw *partWriter) Written() int64 {
 	return pw.written
 }
 
-// mergePartFiles assembles all part temp files into the final destination in order.
-// Parts are identified by <taskID>.part.<N> and sorted numerically.
-// Each part file is deleted after successful copy.
+// mergePartFiles assembles all part temp files into the final destination.
+// Parts are identified by <taskID>.part.<startOffset> — each file is written
+// at its byte offset in the destination. This handles work-stealing overlaps
+// naturally because later writes to the same region simply overwrite.
 func mergePartFiles(tempDir, taskID, destPath string) error {
 	pattern := filepath.Join(tempDir, taskID+".part.*")
 	matches, err := filepath.Glob(pattern)
@@ -120,14 +121,20 @@ func mergePartFiles(tempDir, taskID, destPath string) error {
 	}
 	defer dest.Close()
 
-	bw := bufio.NewWriterSize(dest, 4*1024*1024) // 4MB merge buffer
+	buf := make([]byte, 4*1024*1024) // 4MB copy buffer
 
 	for _, partPath := range matches {
+		offset := int64(extractPartID(partPath))
+
 		pf, err := os.Open(partPath)
 		if err != nil {
 			return fmt.Errorf("failed to open part %s: %w", partPath, err)
 		}
-		if _, err := io.Copy(bw, pf); err != nil {
+		if _, err := dest.Seek(offset, io.SeekStart); err != nil {
+			pf.Close()
+			return fmt.Errorf("failed to seek to offset %d: %w", offset, err)
+		}
+		if _, err := io.CopyBuffer(dest, pf, buf); err != nil {
 			pf.Close()
 			return fmt.Errorf("failed to copy part %s: %w", partPath, err)
 		}
@@ -135,7 +142,7 @@ func mergePartFiles(tempDir, taskID, destPath string) error {
 		os.Remove(partPath)
 	}
 
-	return bw.Flush()
+	return nil
 }
 
 // cleanupPartFiles removes all temp part files for a task.
@@ -147,9 +154,22 @@ func cleanupPartFiles(tempDir, taskID string) {
 	}
 }
 
+// cleanupOrphanedParts removes part files whose startOffset
+// is not in the planned set (e.g. leftover from work-stealing).
+func cleanupOrphanedParts(tempDir, taskID string, plannedOffsets map[int64]bool) {
+	pattern := filepath.Join(tempDir, taskID+".part.*")
+	matches, _ := filepath.Glob(pattern)
+	for _, m := range matches {
+		offset := int64(extractPartID(m))
+		if !plannedOffsets[offset] {
+			os.Remove(m)
+		}
+	}
+}
+
 // partFileExists checks if a completed part file exists with expected size.
-func partFileExists(tempDir, taskID string, partID int, expectedSize int64) bool {
-	name := fmt.Sprintf("%s.part.%d", taskID, partID)
+func partFileExists(tempDir, taskID string, startOffset int64, expectedSize int64) bool {
+	name := fmt.Sprintf("%s.part.%d", taskID, startOffset)
 	path := filepath.Join(tempDir, name)
 	info, err := os.Stat(path)
 	if err != nil {
