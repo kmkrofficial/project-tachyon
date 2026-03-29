@@ -91,6 +91,7 @@ export const DownloadDetailPanel: React.FC<DownloadDetailPanelProps> = ({ item, 
             { label: 'ETA', value: <span className="text-[12px] text-th-text font-mono">{item.eta && item.eta !== '--' ? item.eta : isPaused ? 'Paused' : '-'}</span> },
         ] : []),
         { label: 'Download Type', value: <span className="text-[12px] text-th-text capitalize">{categoryLabels[item.category || ''] || item.category || '-'}</span> },
+        { label: 'Priority', value: <PriorityTag value={item.priority} /> },
         { label: 'Resume Support', value: <ResumeTag value={item.accept_ranges} /> },
         { label: 'Started', value: <span className="text-[12px] text-th-text">{formatDateTime(item.started_at || item.created_at)}</span> },
         ...(item.status === 'completed' ? [
@@ -124,6 +125,12 @@ export const DownloadDetailPanel: React.FC<DownloadDetailPanelProps> = ({ item, 
             </div>
         </div>
     );
+};
+
+const PriorityTag: React.FC<{ value?: number }> = ({ value }) => {
+    if (value === 3) return <span className="text-[11px] font-semibold text-red-400">High</span>;
+    if (value === 1) return <span className="text-[11px] font-semibold text-blue-400">Low</span>;
+    return <span className="text-[11px] font-semibold text-th-text">Normal</span>;
 };
 
 const ResumeTag: React.FC<{ value?: boolean }> = ({ value }) => {
