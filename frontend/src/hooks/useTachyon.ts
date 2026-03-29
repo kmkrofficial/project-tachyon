@@ -25,6 +25,7 @@ export function useTachyon() {
                             filename: t.filename,
                             progress: t.progress,
                             size: t.total_size || t.size || 0,
+                            downloaded: t.downloaded || 0,
                             status: t.status as any,
                             path: t.save_path || t.path,
                             queue_order: t.queue_order || 0,

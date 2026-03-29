@@ -162,10 +162,19 @@ func (e *TachyonEngine) ResumeDownload(id string) error {
 		return fmt.Errorf("cannot resume download in status: %s", task.Status)
 	}
 
-	// Check if file still exists on disk - if not, reset progress
+	// Check if file or temp parts still exist on disk - if not, reset progress
 	if task.SavePath != "" {
-		if _, err := os.Stat(task.SavePath); os.IsNotExist(err) {
-			e.logger.Info("File missing on disk, restarting download from scratch", "id", task.ID, "path", task.SavePath)
+		finalExists := false
+		if _, err := os.Stat(task.SavePath); err == nil {
+			finalExists = true
+		}
+		tempDir := filepath.Join(filepath.Dir(task.SavePath), ".tachyon_parts")
+		tempExists := false
+		if _, err := os.Stat(tempDir); err == nil {
+			tempExists = true
+		}
+		if !finalExists && !tempExists {
+			e.logger.Info("File and temp parts missing on disk, restarting download from scratch", "id", task.ID, "path", task.SavePath)
 			task.Downloaded = 0
 			task.Progress = 0
 			task.MetaJSON = "" // Clear chunk metadata
@@ -260,7 +269,7 @@ func (e *TachyonEngine) ResumeAllDownloads() {
 	}
 
 	for _, task := range tasks {
-		if task.Status == "paused" || task.Status == "stopped" || task.Status == "error" {
+		if task.Status == "paused" {
 			e.ResumeDownload(task.ID)
 		}
 	}

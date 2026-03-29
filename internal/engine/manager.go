@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -175,17 +176,34 @@ func (e *TachyonEngine) SetContext(ctx context.Context) {
 func (e *TachyonEngine) Shutdown() error {
 	e.logger.Info("Engine shutting down...")
 
-	// 1. Cancel all active downloads
-	var shutdownWg sync.WaitGroup
+	// 1. Record IDs of actively running downloads so they can auto-resume on restart
+	var activeIDs []string
+	e.activeDownloads.Range(func(key, value interface{}) bool {
+		activeIDs = append(activeIDs, key.(string))
+		return true
+	})
+	// Also include pending tasks (queued but not yet started)
+	if tasks, err := e.storage.GetAllTasks(); err == nil {
+		for _, t := range tasks {
+			if t.Status == "pending" || t.Status == "probing" {
+				activeIDs = append(activeIDs, t.ID)
+			}
+		}
+	}
+	if len(activeIDs) > 0 {
+		if err := e.storage.SetString("auto_resume_ids", joinIDs(activeIDs)); err != nil {
+			e.logger.Error("Failed to save auto-resume IDs", "error", err)
+		}
+	} else {
+		_ = e.storage.SetString("auto_resume_ids", "")
+	}
+
+	// 2. Cancel all active downloads
 	e.activeDownloads.Range(func(key, value interface{}) bool {
 		if info, ok := value.(*activeDownloadInfo); ok {
 			if info.Cancel != nil {
 				info.Cancel()
 			}
-			shutdownWg.Add(1)
-			go func() {
-				shutdownWg.Done()
-			}()
 		}
 		return true
 	})
@@ -202,21 +220,22 @@ func (e *TachyonEngine) Shutdown() error {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	// 2. Force Checkpoint
+	// 3. Force Checkpoint
 	if err := e.storage.Checkpoint(); err != nil {
 		e.logger.Error("Failed to checkpoint DB", "error", err)
 		return err
 	}
 
-	// 3. Drain global worker pool
+	// 4. Drain global worker pool
 	e.workerPool.Close()
 
 	e.logger.Info("Engine shutdown complete")
 	return nil
 }
 
-// RecoverInterruptedDownloads finds downloads stuck in "downloading" or "pending" status
-// and moves them to "paused" so they can be manually resumed
+// RecoverInterruptedDownloads finds downloads that were actively running when the
+// app last closed and auto-resumes them.  Downloads that were manually paused,
+// stopped, or in error are left untouched.
 func (e *TachyonEngine) RecoverInterruptedDownloads() {
 	tasks, err := e.storage.GetAllTasks()
 	if err != nil {
@@ -224,22 +243,66 @@ func (e *TachyonEngine) RecoverInterruptedDownloads() {
 		return
 	}
 
+	// Build set of IDs that were actively running during the last graceful shutdown
+	autoResumeSet := make(map[string]bool)
+	if raw, err := e.storage.GetString("auto_resume_ids"); err == nil && raw != "" {
+		for _, id := range splitIDs(raw) {
+			autoResumeSet[id] = true
+		}
+	}
+	// Clear the marker so it doesn't persist across future restarts
+	_ = e.storage.SetString("auto_resume_ids", "")
+
+	var toResume []string
+
 	for _, task := range tasks {
-		if task.Status == "downloading" || task.Status == "pending" {
-			// Move to paused state
+		switch task.Status {
+		case "downloading", "pending", "probing", "merging":
+			// Abrupt close — these were actively running
 			task.Status = "paused"
 			if err := e.storage.SaveTask(task); err != nil {
 				e.logger.Error("Failed to pause interrupted download", "id", task.ID, "error", err)
 				continue
 			}
+			toResume = append(toResume, task.ID)
 			e.logger.Info("Recovered interrupted download", "id", task.ID, "filename", task.Filename)
+
+		case "paused":
+			// Graceful shutdown — only auto-resume if it was active before shutdown
+			if autoResumeSet[task.ID] {
+				toResume = append(toResume, task.ID)
+				e.logger.Info("Auto-resuming gracefully-paused download", "id", task.ID, "filename", task.Filename)
+			}
 		}
+	}
+
+	// Auto-resume after a short delay to let the UI initialise
+	if len(toResume) > 0 {
+		go func() {
+			time.Sleep(2 * time.Second)
+			for _, id := range toResume {
+				if err := e.ResumeDownload(id); err != nil {
+					e.logger.Error("Failed to auto-resume download", "id", id, "error", err)
+				}
+			}
+		}()
 	}
 }
 
 // GetStorage returns the storage instance
 func (e *TachyonEngine) GetStorage() *storage.Storage {
 	return e.storage
+}
+
+// joinIDs concatenates non-empty IDs with a comma separator.
+func joinIDs(ids []string) string { return strings.Join(ids, ",") }
+
+// splitIDs splits a comma-separated string back into individual IDs.
+func splitIDs(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	return strings.Split(raw, ",")
 }
 
 // GetUserAgent returns the current custom User-Agent (thread-safe)
