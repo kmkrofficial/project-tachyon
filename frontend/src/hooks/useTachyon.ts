@@ -56,6 +56,7 @@ export function useTachyon() {
                     speed_MBs: data.speed != null ? data.speed / (1024 * 1024) : (prev[data.id]?.speed_MBs ?? 0),
                     eta: data.eta ?? prev[data.id]?.eta ?? "--",
                     size: data.total || prev[data.id]?.size || 0,
+                    downloaded: data.downloaded ?? prev[data.id]?.downloaded ?? 0,
                     path: data.path || prev[data.id]?.path,
                     status: data.status || prev[data.id]?.status || "downloading",
                     url: data.url || prev[data.id]?.url || "",

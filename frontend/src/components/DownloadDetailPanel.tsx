@@ -55,6 +55,11 @@ export const DownloadDetailPanel: React.FC<DownloadDetailPanelProps> = ({ item, 
         setTimeout(() => setCopied(false), 1500);
     };
 
+    const isActive = item.status === 'downloading' || item.status === 'probing';
+    const isPaused = item.status === 'paused';
+    const downloaded = item.downloaded || 0;
+    const remaining = item.size > 0 ? Math.max(0, item.size - downloaded) : 0;
+
     const rows: { label: string; value: React.ReactNode }[] = [
         {
             label: 'Source URL',
@@ -68,13 +73,31 @@ export const DownloadDetailPanel: React.FC<DownloadDetailPanelProps> = ({ item, 
             ),
         },
         { label: 'File Name', value: <span className="text-[12px] text-th-text truncate">{item.filename}</span> },
-        { label: 'Size', value: <span className="text-[12px] text-th-text">{item.size ? formatBytes(item.size) : 'Unknown'}</span> },
+        {
+            label: 'Size',
+            value: (
+                <span className="text-[12px] text-th-text font-mono">
+                    {item.size ? (
+                        (isActive || isPaused) && downloaded > 0
+                            ? <>{formatBytes(downloaded)} <span className="text-th-text-s">/</span> {formatBytes(item.size)}</>
+                            : formatBytes(item.size)
+                    ) : 'Unknown'}
+                </span>
+            ),
+        },
+        ...(isActive || isPaused ? [
+            { label: 'Remaining', value: <span className="text-[12px] text-th-text font-mono">{item.size > 0 ? formatBytes(remaining) : '-'}</span> },
+            { label: 'Speed', value: <span className="text-[12px] text-th-text font-mono">{item.speed_MBs ? `${item.speed_MBs.toFixed(1)} MB/s` : isPaused ? 'Paused' : '-'}</span> },
+            { label: 'ETA', value: <span className="text-[12px] text-th-text font-mono">{item.eta && item.eta !== '--' ? item.eta : isPaused ? 'Paused' : '-'}</span> },
+        ] : []),
         { label: 'Download Type', value: <span className="text-[12px] text-th-text capitalize">{categoryLabels[item.category || ''] || item.category || '-'}</span> },
         { label: 'Resume Support', value: <ResumeTag value={item.accept_ranges} /> },
         { label: 'Started', value: <span className="text-[12px] text-th-text">{formatDateTime(item.started_at || item.created_at)}</span> },
-        { label: 'Completed', value: <span className="text-[12px] text-th-text">{formatDateTime(item.completed_at)}</span> },
-        { label: 'Time Taken', value: <span className="text-[12px] text-th-text font-mono">{formatDuration(item.elapsed)}</span> },
-        { label: 'Avg Speed', value: <span className="text-[12px] text-th-text font-mono">{item.avg_speed ? `${formatBytes(item.avg_speed)}/s` : '-'}</span> },
+        ...(item.status === 'completed' ? [
+            { label: 'Completed', value: <span className="text-[12px] text-th-text">{formatDateTime(item.completed_at)}</span> },
+            { label: 'Time Taken', value: <span className="text-[12px] text-th-text font-mono">{formatDuration(item.elapsed)}</span> },
+            { label: 'Avg Speed', value: <span className="text-[12px] text-th-text font-mono">{item.avg_speed ? `${formatBytes(item.avg_speed)}/s` : '-'}</span> },
+        ] : []),
         {
             label: 'Save Path',
             value: <span className="text-[12px] text-th-text-s truncate font-mono" title={item.path}>{item.path || '-'}</span>,

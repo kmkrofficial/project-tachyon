@@ -4,6 +4,7 @@ export type DownloadItem = {
     filename: string;
     progress: number;
     size: number;
+    downloaded?: number;
     speed_MBs?: number;
     eta?: string;
     status: "downloading" | "paused" | "completed" | "error" | "pending" | "probing";

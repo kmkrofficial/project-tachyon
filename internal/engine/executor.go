@@ -271,6 +271,7 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 			"accept_ranges": probe.AcceptRanges,
 			"category":      task.Category,
 			"started_at":    startedAt.Format(time.RFC3339),
+			"path":          task.SavePath,
 		})
 	}
 
