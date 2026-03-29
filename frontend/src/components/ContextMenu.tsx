@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { FolderOpen, Play, Pause, Square, Trash2, File, ExternalLink, Copy, RotateCcw, Sliders } from 'lucide-react';
+import React, { useEffect, useRef } from 'react';
+import { FolderOpen, Play, Pause, Square, Trash2, File, ExternalLink, Copy, RotateCcw } from 'lucide-react';
 
 interface ContextMenuProps {
     x: number;
@@ -14,30 +14,13 @@ interface ContextMenuProps {
     onPause: () => void;
     onResume: () => void;
     onStop: () => void;
-    onSetPriority: (p: number) => void;
     status: string;
 }
 
 export const ContextMenu: React.FC<ContextMenuProps> = ({
-    x, y, visible, onClose, onOpen, onShowInFolder, onCopyLink, onDelete, onRetry, onPause, onResume, onStop, onSetPriority, status
+    x, y, visible, onClose, onOpen, onShowInFolder, onCopyLink, onDelete, onRetry, onPause, onResume, onStop, status
 }) => {
     const menuRef = useRef<HTMLDivElement>(null);
-
-    const [priorityOpen, setPriorityOpen] = useState(false);
-    const priorityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    const openPriority = useCallback(() => {
-        if (priorityTimer.current) { clearTimeout(priorityTimer.current); priorityTimer.current = null; }
-        setPriorityOpen(true);
-    }, []);
-
-    const closePriority = useCallback(() => {
-        priorityTimer.current = setTimeout(() => setPriorityOpen(false), 200);
-    }, []);
-
-    useEffect(() => {
-        if (!visible) setPriorityOpen(false);
-    }, [visible]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -101,27 +84,6 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
                     </div>
                 </>
             )}
-
-            <div
-                className="px-4 py-2 hover:bg-th-raised relative flex items-center gap-2 cursor-pointer"
-                onMouseEnter={openPriority}
-                onMouseLeave={closePriority}
-            >
-                <span className="flex-1 flex items-center gap-2"><Sliders size={14} /> Priority</span>
-                <span className="text-xs text-th-text-m">▶</span>
-                {/* Submenu */}
-                {priorityOpen && (
-                    <div
-                        className="absolute left-full top-0 ml-1 w-32 bg-th-surface border border-th-border rounded-lg shadow-xl"
-                        onMouseEnter={openPriority}
-                        onMouseLeave={closePriority}
-                    >
-                        <div className="px-4 py-2 hover:bg-th-raised cursor-pointer" onClick={() => { onSetPriority(3); onClose(); }}>High</div>
-                        <div className="px-4 py-2 hover:bg-th-raised cursor-pointer" onClick={() => { onSetPriority(2); onClose(); }}>Normal</div>
-                        <div className="px-4 py-2 hover:bg-th-raised cursor-pointer" onClick={() => { onSetPriority(1); onClose(); }}>Low</div>
-                    </div>
-                )}
-            </div>
 
             <div
                 className="px-4 py-2 hover:bg-th-raised flex items-center gap-2 cursor-pointer"

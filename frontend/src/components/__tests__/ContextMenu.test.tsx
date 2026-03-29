@@ -13,7 +13,6 @@ describe('ContextMenu', () => {
         onCopyLink: vi.fn(),
         onDelete: vi.fn(),
         onRetry: vi.fn(),
-        onSetPriority: vi.fn(),
         onPause: vi.fn(),
         onResume: vi.fn(),
         onStop: vi.fn(),

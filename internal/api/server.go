@@ -150,7 +150,6 @@ type EnqueueRequest struct {
 	URL      string `json:"url"`
 	Path     string `json:"path"`     // Optional custom path
 	Filename string `json:"filename"` // Optional custom filename
-	Priority int    `json:"priority"` // Optional 1-3
 }
 
 type EnqueueResponse struct {
@@ -183,10 +182,6 @@ func (s *ControlServer) handleQueueDownload(w http.ResponseWriter, r *http.Reque
 		s.audit.Log("127.0.0.1", r.UserAgent(), "POST /queue", 500, err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
-	}
-
-	if req.Priority > 0 {
-		s.engine.SetPriority(id, req.Priority)
 	}
 
 	json.NewEncoder(w).Encode(EnqueueResponse{TaskID: id})

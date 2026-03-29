@@ -13,7 +13,6 @@ interface DownloadsTableProps {
     onOpenFile: (id: string) => void;
     onOpenFolder: (id: string) => void;
     onReorder: (id: string, direction: string) => void;
-    onSetPriority: (id: string, priority: number) => void;
     addToast: (type: 'success' | 'error' | 'warning' | 'info', title: string, message: string) => void;
     selectedIds: Set<string>;
     onSelectionChange: (ids: Set<string>) => void;
@@ -49,7 +48,7 @@ const formatEta = (item: DownloadItem): string => {
     return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
 };
 
-export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile, onOpenFolder, onReorder, onSetPriority, addToast, selectedIds, onSelectionChange }) => {
+export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile, onOpenFolder, onReorder, addToast, selectedIds, onSelectionChange }) => {
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; id: string | null }>({ x: 0, y: 0, id: null });
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
     const [deleteFile, setDeleteFile] = useState(false);
@@ -376,7 +375,6 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
                 onCopyLink={() => { if (contextItem) handleCopyLink(contextItem.url); }}
                 onDelete={() => contextMenu.id && setDeleteConfirmId(contextMenu.id)}
                 onRetry={() => { if (contextItem) handleRetry(contextItem.url); }}
-                onSetPriority={(p) => contextMenu.id && onSetPriority(contextMenu.id, p)}
             />
         </>
     );

@@ -140,7 +140,7 @@ func (s *Storage) GetTasksByStatus(status string, limit int) ([]DownloadTask, er
 func (s *Storage) GetActiveTasks() ([]DownloadTask, error) {
 	var tasks []DownloadTask
 	err := s.DB.Where("status IN ?", []string{"downloading", "pending"}).
-		Order("priority desc, created_at asc").
+		Order("created_at asc").
 		Find(&tasks).Error
 	return tasks, err
 }

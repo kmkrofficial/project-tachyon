@@ -83,7 +83,6 @@ func (e *TachyonEngine) StartDownload(urlStr string, destPath string, customFile
 		SavePath:   finalPath,
 		Status:     initialStatus,
 		Category:   category,
-		Priority:   2, // Default Normal
 		QueueOrder: e.queue.GetNextOrder(),
 		CreatedAt:  time.Now().Format(time.RFC3339),
 		UpdatedAt:  time.Now().Format(time.RFC3339),
@@ -411,31 +410,5 @@ func (e *TachyonEngine) ReorderDownload(id string, direction string) error {
 		runtime.EventsEmit(e.ctx, "queue:reordered", nil)
 	}
 
-	return nil
-}
-
-// SetPriority updates the priority of a download (1=Low, 2=Normal, 3=High)
-func (e *TachyonEngine) SetPriority(id string, priority int) error {
-	e.logger.Info("Setting priority", "id", id, "priority", priority)
-	task, err := e.storage.GetTask(id)
-	if err != nil {
-		return err
-	}
-
-	task.Priority = priority
-	if err := e.storage.SaveTask(task); err != nil {
-		return err
-	}
-
-	// Update Bandwidth Manager
-	e.bandwidthManager.SetTaskPriority(id, priority)
-
-	// Emit event
-	if e.ctx != nil {
-		runtime.EventsEmit(e.ctx, "download:updated", map[string]interface{}{
-			"id":       id,
-			"priority": priority,
-		})
-	}
 	return nil
 }

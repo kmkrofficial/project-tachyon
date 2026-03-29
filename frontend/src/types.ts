@@ -10,7 +10,6 @@ export type DownloadItem = {
     status: "downloading" | "paused" | "completed" | "error" | "pending" | "probing" | "merging" | "verifying";
     error?: string;
     path?: string;
-    priority?: number;       // 0=Low, 1=Normal, 2=High
     queue_order?: number;
     created_at?: string;
     file_exists?: boolean;

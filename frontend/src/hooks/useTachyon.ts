@@ -31,7 +31,6 @@ export function useTachyon() {
                             queue_order: t.queue_order || 0,
                             created_at: t.created_at,
                             category: t.category,
-                            priority: t.priority,
                             // Derived/Default values
                             speed_MBs: 0,
                             eta: "--"
@@ -155,17 +154,6 @@ export function useTachyon() {
             loadHistory();
         });
 
-        // Listen for Updated (priority changes etc.)
-        const cleanupUpdated = EventsOn("download:updated", (data: any) => {
-            setDownloads((prev) => ({
-                ...prev,
-                [data.id]: {
-                    ...prev[data.id],
-                    priority: data.priority ?? prev[data.id]?.priority,
-                }
-            }));
-        });
-
         return () => {
             EventsOff("download:progress");
             EventsOff("download:completed");
@@ -175,7 +163,6 @@ export function useTachyon() {
             EventsOff("download:stopped");
             EventsOff("download:timeout");
             EventsOff("queue:reordered");
-            EventsOff("download:updated");
         };
     }, []);
 
@@ -252,17 +239,6 @@ export function useTachyon() {
         }
     }, []);
 
-    const setPriority = useCallback(async (id: string, priority: number) => {
-        if (App && App.SetPriority) {
-            // Optimistic update so UI reflects the change immediately
-            setDownloads((prev) => ({
-                ...prev,
-                [id]: { ...prev[id], priority },
-            }));
-            await App.SetPriority(id, priority);
-        }
-    }, []);
-
     // Calculate Total Speed from active downloads
     useEffect(() => {
         const active = Object.values(downloads).filter(d => d.status === 'downloading' || d.status === 'merging' || d.status === 'verifying');
@@ -277,7 +253,6 @@ export function useTachyon() {
         openFile,
         runSpeedTest,
         reorderDownload,
-        setPriority,
         totalSpeed
     };
 }

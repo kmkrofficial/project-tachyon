@@ -254,10 +254,6 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 		})
 	}
 
-	e.bandwidthManager.SetTaskPriority(task.ID, task.Priority)
-	e.bandwidthManager.MarkActive(task.ID)
-	defer e.bandwidthManager.MarkInactive(task.ID)
-
 Loop:
 	for {
 		select {

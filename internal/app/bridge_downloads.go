@@ -180,12 +180,6 @@ func (a *App) ReorderDownload(id string, direction string) error {
 	return a.engine.ReorderDownload(id, direction)
 }
 
-// SetPriority sets the priority of a download
-func (a *App) SetPriority(id string, priority int) error {
-	a.logger.Info("frontend_request", "method", "SetPriority", "id", id, "priority", priority)
-	return a.engine.SetPriority(id, priority)
-}
-
 // SetGlobalSpeedLimit sets the global download speed limit
 func (a *App) SetGlobalSpeedLimit(bytesPerSec int) {
 	a.logger.Info("frontend_request", "method", "SetGlobalSpeedLimit", "bytesPerSec", bytesPerSec)

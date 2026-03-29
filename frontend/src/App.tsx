@@ -61,7 +61,7 @@ function App() {
 
     // openFolder and openFile trigger backend ops by ID
     // We pass addToast to useTachyon if we want it to manage some errors, or just pass it down to components
-    const { downloads, addDownload, openFolder, openFile, totalSpeed, reorderDownload, setPriority } = useTachyon();
+    const { downloads, addDownload, openFolder, openFile, totalSpeed, reorderDownload } = useTachyon();
 
     // Keyboard shortcuts
     useKeyboardShortcuts({
@@ -265,7 +265,6 @@ function App() {
                                         onOpenFile={openFile}
                                         onOpenFolder={openFolder}
                                         onReorder={reorderDownload}
-                                        onSetPriority={setPriority}
                                         addToast={addToast}
                                         selectedIds={selectedIds}
                                         onSelectionChange={setSelectedIds}

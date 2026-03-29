@@ -44,7 +44,6 @@ vi.mock('../wailsjs/go/app/App', () => ({
     OpenFile: vi.fn(),
     OpenFolder: vi.fn(),
     ReorderDownload: vi.fn(),
-    SetPriority: vi.fn(),
     PauseAllDownloads: vi.fn(),
     ResumeAllDownloads: vi.fn(),
     GetNetworkHealth: vi.fn().mockResolvedValue({ level: 'normal' }),
