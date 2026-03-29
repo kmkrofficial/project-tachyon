@@ -105,6 +105,22 @@
     animation: slide-in 0.3s ease-out forwards;
 }
 
+@keyframes slide-out {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+
+    to {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+}
+
+.animate-slide-out {
+    animation: slide-out 0.3s ease-in forwards;
+}
+
 /* Range input accent color using theme token */
 .accent-th-accent {
     accent-color: rgb(var(--th-accent));

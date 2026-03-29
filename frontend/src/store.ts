@@ -16,6 +16,7 @@ interface SettingsState {
     sizeUnit: 'auto' | 'KB' | 'MB' | 'GB';
     quickDownload: boolean;
     completedClickAction: 'open-file' | 'open-folder';
+    schedulerTime: string; // HH:MM format for global scheduler
 
     setMaxConcurrentDownloads: (n: number) => void;
     setThreadsPerDownload: (n: number) => void;
@@ -31,6 +32,7 @@ interface SettingsState {
     setSizeUnit: (unit: 'auto' | 'KB' | 'MB' | 'GB') => void;
     setQuickDownload: (enabled: boolean) => void;
     setCompletedClickAction: (action: 'open-file' | 'open-folder') => void;
+    setSchedulerTime: (time: string) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -50,6 +52,7 @@ export const useSettingsStore = create<SettingsState>()(
             sizeUnit: 'auto',
             quickDownload: false,
             completedClickAction: 'open-file',
+            schedulerTime: '02:00',
 
             setMaxConcurrentDownloads: (n) => set({ maxConcurrentDownloads: n }),
             setThreadsPerDownload: (n) => set({ threadsPerDownload: n }),
@@ -65,6 +68,7 @@ export const useSettingsStore = create<SettingsState>()(
             setSizeUnit: (unit) => set({ sizeUnit: unit }),
             setQuickDownload: (enabled) => set({ quickDownload: enabled }),
             setCompletedClickAction: (action) => set({ completedClickAction: action }),
+            setSchedulerTime: (time) => set({ schedulerTime: time }),
         }),
         {
             name: 'tachyon-settings',

@@ -35,6 +35,7 @@ const statusColors: Record<string, string> = {
     stopped: "bg-th-raised text-th-text-s border-th-border",
     merging: "bg-th-accent/10 text-th-accent-t border-th-accent/20",
     verifying: "bg-th-accent/10 text-th-accent-t border-th-accent/20",
+    scheduled: "bg-purple-500/10 text-purple-400 border-purple-500/20",
 };
 
 const formatEta = (item: DownloadItem): string => {

@@ -43,7 +43,7 @@ export const Dropdown: React.FC<DropdownProps> = ({ value, onChange, options, cl
             </button>
 
             {open && (
-                <div className="absolute z-50 mt-1 w-full min-w-[140px] bg-th-surface border border-th-border rounded-lg shadow-xl shadow-black/20 py-1 overflow-hidden">
+                <div className="absolute z-50 mt-1 w-full min-w-[140px] max-h-60 overflow-y-auto bg-th-surface border border-th-border rounded-lg shadow-xl shadow-black/20 py-1 scrollbar-thin scrollbar-thumb-th-raised scrollbar-track-transparent">
                     {options.map(opt => (
                         <button
                             key={opt.value}

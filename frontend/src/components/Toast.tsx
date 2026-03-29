@@ -18,7 +18,7 @@ interface ToastContainerProps {
 
 export const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, removeToast }) => {
     return (
-        <div className="fixed top-4 right-4 z-[200] flex flex-col gap-3 font-sans">
+        <div className="fixed bottom-10 right-4 z-[200] flex flex-col-reverse gap-3 font-sans">
             {toasts.map(t => (
                 <ToastItem key={t.id} toast={t} onDismiss={() => removeToast(t.id)} />
             ))}
@@ -63,7 +63,7 @@ const ToastItem = ({ toast, onDismiss }: { toast: ToastMessage, onDismiss: () =>
         <div className={cn(
             "w-80 p-4 rounded-xl border shadow-xl flex gap-3 transition-all duration-300 relative overflow-hidden",
             styles[toast.type],
-            isExiting ? "opacity-0 translate-x-4" : "opacity-100 translate-x-0 animate-slide-in"
+            isExiting ? "animate-slide-out" : "opacity-100 translate-x-0 animate-slide-in"
         )}>
             <div className="shrink-0 pt-0.5">{icons[toast.type]}</div>
             <div className="flex-1">

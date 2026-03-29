@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Save, Clock, Wifi, Sliders, Bot } from 'lucide-react';
+import { X, Save, Wifi, Sliders, Bot } from 'lucide-react';
 import { useSettingsStore } from '../store';
 import { useTachyon } from '../hooks/useTachyon';
 
@@ -14,7 +14,7 @@ interface SettingsModalProps {
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     const settings = useSettingsStore();
-    const [activeTab, setActiveTab] = useState<'general' | 'scheduler' | 'network' | 'mcp'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'network' | 'mcp'>('general');
 
     if (!isOpen) return null;
 
@@ -23,7 +23,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         if (window.go?.app?.App?.SetMaxConcurrentDownloads) {
             window.go.app.App.SetMaxConcurrentDownloads(settings.maxConcurrentDownloads);
         }
-        // ...
+        if (window.go?.app?.App?.SetGlobalSpeedLimit) {
+            window.go.app.App.SetGlobalSpeedLimit(settings.globalSpeedLimit);
+        }
         onClose();
     };
 
@@ -50,13 +52,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                             onClick={() => setActiveTab('general')}
                         />
                         <TabButton
-                            id="scheduler"
-                            label="Scheduler"
-                            icon={Clock}
-                            active={activeTab === 'scheduler'}
-                            onClick={() => setActiveTab('scheduler')}
-                        />
-                        <TabButton
                             id="network"
                             label="Network"
                             icon={Wifi}
@@ -76,25 +71,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     <div className="flex-1 p-6 overflow-y-auto">
                         {activeTab === 'general' && <GeneralSettings />}
                         {activeTab === 'mcp' && <MCPDashboard />}
-
-                        {activeTab === 'scheduler' && (
-                            <div className="space-y-6">
-                                <div className="bg-th-raised/50 p-4 rounded-lg border border-th-border-s">
-                                    <p className="text-sm text-yellow-500 mb-2">Schedule Activity</p>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-xs text-th-text-m mb-1">Start Time</label>
-                                            <input type="time" className="bg-th-surface border border-th-border-s rounded p-2 text-th-text w-full" defaultValue="02:00" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs text-th-text-m mb-1">Stop Time</label>
-                                            <input type="time" className="bg-th-surface border border-th-border-s rounded p-2 text-th-text w-full" defaultValue="08:00" />
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
                         {activeTab === 'network' && <NetworkSettings />}
                     </div>
                 </div >

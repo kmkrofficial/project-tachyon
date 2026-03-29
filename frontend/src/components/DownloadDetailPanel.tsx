@@ -37,6 +37,19 @@ const formatDuration = (seconds?: number): string => {
     return `${h}h ${m % 60}m ${s}s`;
 };
 
+const formatEtaDetail = (item: DownloadItem): string => {
+    if (item.status !== 'downloading') return '-';
+    if (!item.speed_MBs || item.speed_MBs <= 0) return 'Calculating...';
+    const remaining = item.size * (1 - item.progress / 100);
+    const seconds = remaining / (item.speed_MBs * 1024 * 1024);
+    if (seconds < 60) return `${Math.ceil(seconds)}s`;
+    const m = Math.floor(seconds / 60);
+    const s = Math.round(seconds % 60);
+    if (m < 60) return `${m}m ${s}s`;
+    const h = Math.floor(m / 60);
+    return `${h}h ${m % 60}m`;
+};
+
 const categoryLabels: Record<string, string> = {
     video: 'Video',
     compressed: 'Archive',
@@ -103,7 +116,7 @@ export const DownloadDetailPanel: React.FC<DownloadDetailPanelProps> = ({ item, 
         ...(isActive || isPaused ? [
             { label: 'Remaining', value: <span className="text-[12px] text-th-text font-mono">{item.size > 0 ? formatBytes(remaining) : '-'}</span> },
             { label: 'Speed', value: <span className="text-[12px] text-th-text font-mono">{item.speed_MBs ? `${item.speed_MBs.toFixed(1)} MB/s` : isPaused ? 'Paused' : '-'}</span> },
-            { label: 'ETA', value: <span className="text-[12px] text-th-text font-mono">{item.eta && item.eta !== '--' ? item.eta : isPaused ? 'Paused' : '-'}</span> },
+            { label: 'ETA', value: <span className="text-[12px] text-th-text font-mono">{isPaused ? 'Paused' : formatEtaDetail(item)}</span> },
         ] : []),
         { label: 'Download Type', value: <span className="text-[12px] text-th-text capitalize">{categoryLabels[item.category || ''] || item.category || '-'}</span> },
         { label: 'Resume Support', value: <ResumeTag value={item.accept_ranges} /> },

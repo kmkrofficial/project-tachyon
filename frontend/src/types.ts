@@ -7,7 +7,7 @@ export type DownloadItem = {
     downloaded?: number;
     speed_MBs?: number;
     eta?: string;
-    status: "downloading" | "paused" | "completed" | "error" | "pending" | "probing" | "merging" | "verifying";
+    status: "downloading" | "paused" | "completed" | "error" | "pending" | "probing" | "merging" | "verifying" | "scheduled";
     error?: string;
     path?: string;
     queue_order?: number;

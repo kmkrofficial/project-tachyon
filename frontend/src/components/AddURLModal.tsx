@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, Globe, Link2, FolderOpen, AlertTriangle, FileCheck, Copy, DownloadCloud, Loader2, Calendar, Clock } from 'lucide-react';
+import { X, Globe, Link2, FolderOpen, AlertTriangle, FileCheck, Copy, DownloadCloud, Loader2, Calendar } from 'lucide-react';
 import prettyBytes from 'pretty-bytes';
 import { Checkbox } from './common/Checkbox';
 import { Dropdown } from './common/Dropdown';
+import { useSettingsStore } from '../store';
 
 interface AddURLModalProps {
     isOpen: boolean;
@@ -26,8 +27,8 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
     const [showPathInput, setShowPathInput] = useState(false);
 
     // Schedule state
-    const [scheduleTime, setScheduleTime] = useState("");
     const [enableSchedule, setEnableSchedule] = useState(false);
+    const schedulerTime = useSettingsStore(s => s.schedulerTime);
 
 
 
@@ -72,7 +73,6 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
         setDownloadPath("");
         setShowPathInput(false);
         setEnableSchedule(false);
-        setScheduleTime("");
 
     };
 
@@ -123,9 +123,14 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
             const finalFilename = customFilename || (probeData ? probeData.filename : undefined);
 
             const options: any = {};
-            if (enableSchedule && scheduleTime) {
-                const date = new Date(scheduleTime);
-                options["start_time"] = date.toISOString();
+            if (enableSchedule && schedulerTime) {
+                // Compute next occurrence of the global schedule time (HH:MM)
+                const [hours, minutes] = schedulerTime.split(':').map(Number);
+                const now = new Date();
+                const target = new Date();
+                target.setHours(hours, minutes, 0, 0);
+                if (target <= now) target.setDate(target.getDate() + 1);
+                options["start_time"] = target.toISOString();
             }
 
             const result = await onAdd(url, finalFilename, size, downloadPath, options);
@@ -281,7 +286,7 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
                         </div>
 
                         {/* Schedule Option */}
-                        <div className="bg-th-raised/50 p-3 rounded-xl border border-th-border-s space-y-2">
+                        <div className="bg-th-raised/50 p-3 rounded-xl border border-th-border-s">
                             <div className="flex items-center gap-2">
                                 <Checkbox
                                     id="schedule"
@@ -290,24 +295,12 @@ export const AddURLModal: React.FC<AddURLModalProps> = ({ isOpen, onClose, onAdd
                                 />
                                 <label htmlFor="schedule" className="text-sm font-medium text-th-text-s select-none cursor-pointer flex items-center gap-2">
                                     <Calendar size={14} className="text-th-text-s" />
-                                    Start Later
+                                    Schedule download
                                 </label>
+                                {enableSchedule && (
+                                    <span className="ml-auto text-xs text-purple-400">Scheduled for {schedulerTime}</span>
+                                )}
                             </div>
-
-                            {enableSchedule && (
-                                <div className="pl-6">
-                                    <input
-                                        type="datetime-local"
-                                        className="w-full bg-th-surface border border-th-border-s rounded-lg p-2 text-sm text-th-text focus:outline-none focus:border-th-accent"
-                                        value={scheduleTime}
-                                        onChange={e => setScheduleTime(e.target.value)}
-                                    />
-                                    <p className="text-[10px] text-th-text-m mt-1 flex items-center gap-1">
-                                        <Clock size={10} />
-                                        Task will be queued and auto-started at this time.
-                                    </p>
-                                </div>
-                            )}
                         </div>
 
                         {/* Path Selector */}

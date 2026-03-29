@@ -95,7 +95,10 @@ export function useTachyon() {
                     ...prev[data.id],
                     status: "paused",
                     speed_MBs: 0,
-                    eta: "--"
+                    eta: "--",
+                    downloaded: data.downloaded ?? prev[data.id]?.downloaded ?? 0,
+                    progress: data.progress ?? prev[data.id]?.progress ?? 0,
+                    size: data.total || prev[data.id]?.size || 0,
                 }
             }))
         });

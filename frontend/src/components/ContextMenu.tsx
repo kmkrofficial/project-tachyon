@@ -59,14 +59,14 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
 
             <div className="h-px bg-th-border my-1 mx-2"></div>
 
-            {(status === 'downloading' || status === 'probing' || status === 'paused' || status === 'pending') && (
+            {(status === 'downloading' || status === 'probing' || status === 'paused' || status === 'pending' || status === 'scheduled') && (
                 <>
-                    {status === 'paused' ? (
+                    {(status === 'paused' || status === 'scheduled') ? (
                         <div
                             className="px-4 py-2 hover:bg-th-raised flex items-center gap-2 cursor-pointer"
                             onClick={() => { onResume(); onClose(); }}
                         >
-                            <Play size={14} className="text-green-400" /> Resume
+                            <Play size={14} className="text-green-400" /> {status === 'scheduled' ? 'Start Now' : 'Resume'}
                         </div>
                     ) : (
                         <div
