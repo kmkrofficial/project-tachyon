@@ -166,14 +166,16 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
                     <thead className="bg-th-surface/95 sticky top-0 z-30 backdrop-blur-sm border-b border-th-border">
                         <tr>
                             {selectMode && <th className="w-8 px-3 py-2" />}
-                            <th className="w-8 px-2 py-2 text-[11px] font-bold text-th-text-m uppercase tracking-wider">
-                                {!selectMode && data.length > 0 ? (
-                                    <button onClick={() => setSelectMode(true)} className="text-th-text-m hover:text-th-text transition-colors" title="Select">
-                                        <CheckSquare size={13} />
-                                    </button>
-                                ) : '#'}
+                            <th className="px-3 py-2 text-[11px] font-bold text-th-text-m uppercase tracking-wider">
+                                <div className="flex items-center gap-1.5">
+                                    {!selectMode && data.length > 0 && (
+                                        <button onClick={() => setSelectMode(true)} className="text-th-text-m hover:text-th-text transition-colors" title="Select">
+                                            <CheckSquare size={13} />
+                                        </button>
+                                    )}
+                                    File Name
+                                </div>
                             </th>
-                            <th className="px-3 py-2 text-[11px] font-bold text-th-text-m uppercase tracking-wider">File Name</th>
                             <th className="px-3 py-2 text-[11px] font-bold text-th-text-m uppercase tracking-wider w-24">Status</th>
                             <th className="px-3 py-2 text-[11px] font-bold text-th-text-m uppercase tracking-wider w-36 hidden sm:table-cell">Progress</th>
                             <th className="px-3 py-2 text-[11px] font-bold text-th-text-m uppercase tracking-wider w-20 hidden md:table-cell">Size</th>
@@ -215,9 +217,6 @@ export const DownloadsTable: React.FC<DownloadsTableProps> = ({ data, onOpenFile
                                                 onClick={e => e.stopPropagation()} size="sm" />
                                         </td>
                                     )}
-                                    <td className="px-2 py-1.5">
-                                        <span className="text-[11px] text-th-text-m font-mono tabular-nums">{item.queue_order || '-'}</span>
-                                    </td>
                                     <td className="px-3 py-1.5">
                                         <div className="flex items-center gap-2 min-w-0">
                                             <Icon size={14} className="text-th-text-s shrink-0" />
