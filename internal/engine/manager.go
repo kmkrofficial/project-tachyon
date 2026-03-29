@@ -36,6 +36,7 @@ type TachyonEngine struct {
 	queue           *queue.DownloadQueue
 	scheduler       *queue.SmartScheduler
 	activeDownloads sync.Map // map[string]*activeDownloadInfo
+	allowLoopback   bool     // allow 127.0.0.1 downloads (testing only)
 	bufferPool      *sync.Pool
 	httpClient      *http.Client
 	stats           *analytics.StatsManager
@@ -258,19 +259,15 @@ func (e *TachyonEngine) RecoverInterruptedDownloads() {
 	for _, task := range tasks {
 		switch task.Status {
 		case "downloading", "pending", "probing", "merging":
-			// Abrupt close — move to paused, only auto-resume if we have
-			// an explicit marker from a prior graceful shutdown
+			// Active at close — always auto-resume regardless of whether
+			// shutdown was graceful or abrupt.
 			task.Status = "paused"
 			if err := e.storage.SaveTask(task); err != nil {
 				e.logger.Error("Failed to pause interrupted download", "id", task.ID, "error", err)
 				continue
 			}
-			if autoResumeSet[task.ID] {
-				toResume = append(toResume, task.ID)
-				e.logger.Info("Recovered interrupted download (will auto-resume)", "id", task.ID, "filename", task.Filename)
-			} else {
-				e.logger.Info("Recovered interrupted download (left paused)", "id", task.ID, "filename", task.Filename)
-			}
+			toResume = append(toResume, task.ID)
+			e.logger.Info("Recovered interrupted download (will auto-resume)", "id", task.ID, "filename", task.Filename)
 
 		case "paused":
 			// Graceful shutdown — only auto-resume if it was active before shutdown

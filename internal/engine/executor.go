@@ -140,8 +140,10 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 	// Hydrate completed parts — validate against temp files on disk
 	completedParts := make(map[int]bool)
 	partPlan := make(map[int]DownloadPart, len(parts))
+	plannedOffsets := make(map[int64]bool, len(parts))
 	for _, part := range parts {
 		partPlan[part.ID] = part
+		plannedOffsets[part.StartOffset] = true
 	}
 	if resumeState != nil {
 		for id, ps := range resumeState.Parts {
@@ -156,11 +158,15 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 			if part.EndOffset == StreamEndOffset {
 				// Can't validate size for streaming parts
 				completedParts[id] = true
-			} else if partFileExists(tempDir, task.ID, id, expectedSize) {
+			} else if partFileExists(tempDir, task.ID, part.StartOffset, expectedSize) {
 				completedParts[id] = true
 			}
 		}
 	}
+
+	// Clean up orphaned part files (e.g. from work-stealing in a previous run)
+	// that don't match any planned part offset.
+	cleanupOrphanedParts(tempDir, task.ID, plannedOffsets)
 
 	// Channels
 	partCh := make(chan DownloadPart, numParts)
@@ -236,6 +242,7 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 	var lastDownloadedBytes int64 = atomic.LoadInt64(&downloadedBytes)
 	lastTick := time.Now()
 	var ewmaSpeed float64
+	var tickCount int
 
 	// Initial Status Update — save once at start
 	task.Status = "downloading"
@@ -259,17 +266,27 @@ Loop:
 		select {
 		case <-ctx.Done():
 			metaSnap := e.serializeState(task, completedParts, partPlan)
+			downloaded := atomic.LoadInt64(&downloadedBytes)
+			var progress float64
+			if task.TotalSize > 0 {
+				progress = (float64(downloaded) / float64(task.TotalSize)) * 100
+			}
 			e.storage.SaveTaskAtomic(task.ID, func(t *storage.DownloadTask) {
 				t.Status = "paused"
 				t.MetaJSON = metaSnap
-				t.Downloaded = atomic.LoadInt64(&downloadedBytes)
+				t.Downloaded = downloaded
+				t.Progress = progress
 				t.Speed = 0
 			})
 			task.Status = "paused"
+			task.Progress = progress
 			e.logger.Info("Download Cancelled/Paused", "id", task.ID)
 			if e.ctx != nil {
 				runtime.EventsEmit(e.ctx, "download:paused", map[string]interface{}{
-					"id": task.ID,
+					"id":         task.ID,
+					"downloaded": downloaded,
+					"progress":   progress,
+					"total":      task.TotalSize,
 				})
 			}
 			break Loop
@@ -343,7 +360,15 @@ Loop:
 
 		case id := <-partDoneCh:
 			completedParts[id] = true
-			if len(completedParts) == numParts {
+			// Only count original parts (0..numParts-1) for completion.
+			// Stolen parts (id >= numParts) contribute data but don't replace originals.
+			originalDone := 0
+			for pid := range completedParts {
+				if pid < numParts {
+					originalDone++
+				}
+			}
+			if originalDone == numParts {
 				break Loop
 			}
 
@@ -378,6 +403,17 @@ Loop:
 					etaSeconds := float64(remainingBytes) / ewmaSpeed
 					task.TimeRemaining = fmt.Sprintf("%.0fs", etaSeconds)
 				}
+			}
+
+			// Persist progress to DB every 5 seconds so abrupt-close recovery
+			// has recent Downloaded/Progress values.
+			tickCount++
+			if tickCount%5 == 0 {
+				progress := task.Progress
+				e.storage.SaveTaskAtomic(task.ID, func(t *storage.DownloadTask) {
+					t.Downloaded = current
+					t.Progress = progress
+				})
 			}
 
 			if e.ctx != nil {
