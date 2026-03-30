@@ -1,35 +1,31 @@
 package storage
 
-import (
-	"gorm.io/gorm"
-)
-
 // DownloadTask represents a download task in the database
 type DownloadTask struct {
-	ID            string         `gorm:"primaryKey" json:"id"`
-	Filename      string         `json:"filename"`
-	URL           string         `json:"url"`
-	SavePath      string         `json:"save_path"`
-	Status        string         `gorm:"index" json:"status"`          // downloading, completed, paused, error, pending
-	Priority      int            `gorm:"default:1" json:"priority"`    // 0=Low, 1=Normal, 2=High
-	QueueOrder    int            `gorm:"default:0" json:"queue_order"` // Sequential order in queue
-	Category      string         `gorm:"index" json:"category"`
-	TotalSize     int64          `json:"total_size"`
-	Downloaded    int64          `json:"downloaded"`
-	Progress      float64        `json:"progress"`
-	Speed         float64        `json:"speed"` // bytes/sec
-	TimeRemaining string         `json:"time_remaining"`
-	MetaJSON      string         `json:"-"` // Store complex chunk data/headers as JSON
-	FileExists    bool           `gorm:"-" json:"file_exists"`
-	ExpectedHash  string         `json:"expected_hash"`
-	HashAlgorithm string         `json:"hash_algorithm"`
-	Headers       string         `json:"headers"`    // JSON serialized
-	Cookies       string         `json:"cookies"`    // JSON serialized
-	StartTime     string         `json:"start_time"` // ISO 8601 for scheduled start
-	Domain        string         `json:"domain"`     // e.g. "google.com" for concurrency limits
-	CreatedAt     string         `json:"created_at"`
-	UpdatedAt     string         `json:"updated_at"`
-	DeletedAt     gorm.DeletedAt `gorm:"index" json:"-"`
+	ID            string  `gorm:"primaryKey" json:"id"`
+	Filename      string  `json:"filename"`
+	URL           string  `json:"url"`
+	SavePath      string  `json:"save_path"`
+	Status        string  `gorm:"index" json:"status"`          // downloading, completed, paused, error, pending
+	Priority      int     `gorm:"default:1" json:"priority"`    // 0=Low, 1=Normal, 2=High
+	QueueOrder    int     `gorm:"default:0" json:"queue_order"` // Sequential order in queue
+	Category      string  `gorm:"index" json:"category"`
+	TotalSize     int64   `json:"total_size"`
+	Downloaded    int64   `json:"downloaded"`
+	Progress      float64 `json:"progress"`
+	Speed         float64 `json:"speed"` // bytes/sec
+	TimeRemaining string  `json:"time_remaining"`
+	MetaJSON      string  `json:"-"` // Store complex chunk data/headers as JSON
+	FileExists    bool    `gorm:"-" json:"file_exists"`
+	ExpectedHash  string  `json:"expected_hash"`
+	HashAlgorithm string  `json:"hash_algorithm"`
+	Headers       string  `json:"headers"`    // JSON serialized
+	Cookies       string  `json:"cookies"`    // JSON serialized
+	StartTime     string  `json:"start_time"` // ISO 8601 for scheduled start
+	Domain        string  `json:"domain"`     // e.g. "google.com" for concurrency limits
+	CreatedAt     string  `json:"created_at"`
+	UpdatedAt     string  `json:"updated_at"`
+	DeletedAt     int64   `gorm:"index;softDelete:milli" json:"-"`
 }
 
 // TableName specifies the table name for DownloadTask
