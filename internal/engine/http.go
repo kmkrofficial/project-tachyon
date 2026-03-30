@@ -113,6 +113,18 @@ func (e *TachyonEngine) ProbeURL(urlStr string, headersStr string, cookiesStr st
 	result, err = e.probeGETRange(ctx, urlStr, headersStr, cookiesStr)
 	if err == nil && result != nil {
 		e.probes.Put(urlStr, result)
+		return result, nil
+	}
+
+	// 3. Final fallback: plain GET without Range header — some servers reject
+	//    the Range header entirely with a 400.
+	if err != nil {
+		e.logger.Info("GET+Range failed, trying plain GET fallback", "url", urlStr, "range_error", err)
+	}
+	result, err = e.probePlainGET(ctx, urlStr, headersStr, cookiesStr)
+	if err == nil && result != nil {
+		result.AcceptRanges = false // Server doesn't support ranges
+		e.probes.Put(urlStr, result)
 	}
 	return result, err
 }
@@ -156,6 +168,29 @@ func (e *TachyonEngine) probeGETRange(ctx context.Context, urlStr string, header
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 && resp.StatusCode != http.StatusPartialContent {
+		return &ProbeResult{Status: resp.StatusCode}, friendlyHTTPError(resp.StatusCode)
+	}
+
+	return e.parseProbeResponse(resp), nil
+}
+
+// probePlainGET performs a plain GET request (no Range header) as a last-resort fallback.
+// The body is discarded immediately — only response headers are inspected.
+func (e *TachyonEngine) probePlainGET(ctx context.Context, urlStr string, headersStr string, cookiesStr string) (*ProbeResult, error) {
+	req, err := e.newRequest("GET", urlStr, headersStr, cookiesStr)
+	if err != nil {
+		return nil, friendlyError(err)
+	}
+	req = req.WithContext(ctx)
+
+	resp, err := e.httpClient.Do(req)
+	if err != nil {
+		e.logger.Error("Plain GET probe failed", "url", urlStr, "error", err)
+		return nil, friendlyError(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
 		return &ProbeResult{Status: resp.StatusCode}, friendlyHTTPError(resp.StatusCode)
 	}
 
