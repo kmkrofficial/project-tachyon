@@ -302,6 +302,11 @@ func (e *TachyonEngine) GetStorage() *storage.Storage {
 	return e.storage
 }
 
+// GetScanner returns the AV scanner instance
+func (e *TachyonEngine) GetScanner() security.Scanner {
+	return e.scanner
+}
+
 // joinIDs concatenates non-empty IDs with a comma separator.
 func joinIDs(ids []string) string { return strings.Join(ids, ",") }
 

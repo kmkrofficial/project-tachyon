@@ -53,6 +53,26 @@ func (a *App) GetRecentAuditLogs() []security.AccessLogEntry {
 	return a.audit.GetRecentLogs(50)
 }
 
+// GetAVScannerInfo returns the scanner name and whether it is available on this system
+func (a *App) GetAVScannerInfo() map[string]interface{} {
+	scanner := a.engine.GetScanner()
+	return map[string]interface{}{
+		"name":      scanner.Name(),
+		"available": scanner.IsAvailable(),
+	}
+}
+
+// GetEnableAVScan returns whether AV scanning of completed downloads is enabled
+func (a *App) GetEnableAVScan() bool {
+	return a.cfg.GetEnableAVScan()
+}
+
+// SetEnableAVScan toggles AV scanning of completed downloads
+func (a *App) SetEnableAVScan(enabled bool) {
+	a.cfg.SetEnableAVScan(enabled)
+	a.logger.Info("AV scan setting changed", "enabled", enabled)
+}
+
 // CalculateHash computes the hash of a file for checksum verification
 // algorithm should be "sha256" or "md5"
 func (a *App) CalculateHash(filePath string, algorithm string) (string, error) {

@@ -12,6 +12,7 @@ const (
 	KeyEnableAIInterface    = "enable_ai_interface"
 	KeyAIToken              = "ai_token"
 	KeyEnableIntegrityCheck = "enable_integrity_check"
+	KeyEnableAVScan         = "enable_av_scan"
 	KeyAIPort               = "ai_port"
 	KeyAIMaxConcurrent      = "ai_max_concurrent"
 	KeyUserAgent            = "user_agent"
@@ -98,6 +99,22 @@ func (c *ConfigManager) SetEnableIntegrityCheck(enabled bool) error {
 		val = "true"
 	}
 	return c.storage.SetString(KeyEnableIntegrityCheck, val)
+}
+
+func (c *ConfigManager) GetEnableAVScan() bool {
+	val, err := c.storage.GetString(KeyEnableAVScan)
+	if err != nil {
+		return true // Default enabled
+	}
+	return val != "false"
+}
+
+func (c *ConfigManager) SetEnableAVScan(enabled bool) error {
+	val := "false"
+	if enabled {
+		val = "true"
+	}
+	return c.storage.SetString(KeyEnableAVScan, val)
 }
 
 func generateSecureToken() string {

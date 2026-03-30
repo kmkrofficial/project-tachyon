@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useSettingsStore } from '../../store';
-import { Sun, Moon, Monitor, FolderOpen, Eclipse } from 'lucide-react';
+import { Sun, Moon, Monitor, FolderOpen, Eclipse, Shield } from 'lucide-react';
+// @ts-ignore
+import * as AppBinding from '../../../wailsjs/go/app/App';
 
 const Toggle: React.FC<{ enabled: boolean; onChange: (v: boolean) => void }> = ({ enabled, onChange }) => (
     <button
@@ -14,13 +16,23 @@ const Toggle: React.FC<{ enabled: boolean; onChange: (v: boolean) => void }> = (
 export const GeneralSettings: React.FC = () => {
     const settings = useSettingsStore();
     const [defaultPath, setDefaultPath] = useState('');
+    const [avInfo, setAvInfo] = useState<{ name: string; available: boolean } | null>(null);
+    const [avEnabled, setAvEnabled] = useState(true);
 
     useEffect(() => {
         // @ts-ignore
         window.go?.app?.App?.GetDefaultDownloadPath?.().then((p: string) => {
             if (p) setDefaultPath(p);
         });
+        AppBinding.GetAVScannerInfo?.().then((info: any) => setAvInfo(info));
+        AppBinding.GetEnableAVScan?.().then((v: boolean) => setAvEnabled(v));
     }, []);
+
+    const handleAVToggle = (enabled: boolean) => {
+        if (enabled && avInfo && !avInfo.available) return;
+        setAvEnabled(enabled);
+        AppBinding.SetEnableAVScan?.(enabled);
+    };
 
     return (
         <div className="space-y-8">
@@ -170,6 +182,47 @@ export const GeneralSettings: React.FC = () => {
                             ))}
                         </div>
                     </div>
+                </div>
+            </section>
+
+            <hr className="border-th-border" />
+
+            {/* Security */}
+            <section>
+                <h3 className="text-sm font-semibold text-th-text-s uppercase tracking-wider mb-4">Security</h3>
+                <div className="space-y-5">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <span className="text-sm font-medium text-th-text flex items-center gap-1.5">
+                                <Shield size={14} /> Antivirus Scan
+                            </span>
+                            {avInfo ? (
+                                avInfo.available ? (
+                                    <p className="text-xs text-th-text-m mt-0.5">
+                                        Scan completed downloads using <span className="font-medium text-th-text">{avInfo.name}</span>
+                                    </p>
+                                ) : (
+                                    <p className="text-xs text-red-400 mt-0.5">
+                                        No antivirus available on this system
+                                    </p>
+                                )
+                            ) : (
+                                <p className="text-xs text-th-text-m mt-0.5">Checking scanner availability...</p>
+                            )}
+                        </div>
+                        <Toggle
+                            enabled={avEnabled && (avInfo?.available ?? false)}
+                            onChange={handleAVToggle}
+                        />
+                    </div>
+                    {avInfo && (
+                        <div className="bg-th-raised rounded-lg p-3 border border-th-border text-xs text-th-text-m space-y-1">
+                            <p><span className="font-medium text-th-text">How it works:</span></p>
+                            <p><span className="text-th-text">Windows</span> — Uses Windows Defender (MpCmdRun.exe) to scan each completed file.</p>
+                            <p><span className="text-th-text">macOS / Linux</span> — Connects to a ClamAV daemon if available (set <code className="text-th-accent">CLAMAV_HOST</code> env variable).</p>
+                            <p>Detected threats are reported as warnings — files are not auto-deleted.</p>
+                        </div>
+                    )}
                 </div>
             </section>
         </div>

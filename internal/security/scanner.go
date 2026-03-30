@@ -21,6 +21,8 @@ type Scanner interface {
 	ScanFile(ctx context.Context, filePath string) error
 	// Name returns the scanner name for logging
 	Name() string
+	// IsAvailable returns true if the scanner backend is present and usable
+	IsAvailable() bool
 }
 
 // ScanResult represents the outcome of a scan
@@ -62,6 +64,12 @@ func (s *WindowsDefenderScanner) SetExecCommand(fn execCommandFunc) {
 // Name returns the scanner name
 func (s *WindowsDefenderScanner) Name() string {
 	return "Windows Defender"
+}
+
+// IsAvailable checks if MpCmdRun.exe exists on the system
+func (s *WindowsDefenderScanner) IsAvailable() bool {
+	_, err := os.Stat(`C:\Program Files\Windows Defender\MpCmdRun.exe`)
+	return err == nil
 }
 
 // ScanFile triggers Windows Defender to scan the specified file
@@ -162,6 +170,11 @@ func (s *NoOpScanner) Name() string {
 	return "NoOp (Native AV not available)"
 }
 
+// IsAvailable always returns false for the no-op scanner
+func (s *NoOpScanner) IsAvailable() bool {
+	return false
+}
+
 // ScanFile logs a warning and returns nil (no scanning performed)
 func (s *NoOpScanner) ScanFile(ctx context.Context, filePath string) error {
 	s.logger.Warn("Native AV scanning skipped - not available on this platform",
@@ -200,6 +213,18 @@ func (s *ClamAVScanner) SetDialFunc(fn func(ctx context.Context, network, addres
 // Name returns the scanner name
 func (s *ClamAVScanner) Name() string {
 	return "ClamAV"
+}
+
+// IsAvailable checks if the ClamAV daemon is reachable
+func (s *ClamAVScanner) IsAvailable() bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	conn, err := s.dialFunc(ctx, "tcp", s.host)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
 }
 
 // ScanFile scans a file using ClamAV's INSTREAM protocol

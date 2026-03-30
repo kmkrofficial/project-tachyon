@@ -507,14 +507,20 @@ Loop:
 		})
 		e.logger.Info("Download Completed", "id", task.ID)
 
-		if scanErr := e.scanner.ScanFile(ctx, task.SavePath); scanErr != nil {
-			e.logger.Warn("AV scan warning", "id", task.ID, "error", scanErr)
-			if e.ctx != nil {
-				runtime.EventsEmit(e.ctx, "download:av_warning", map[string]interface{}{
-					"id":      task.ID,
-					"path":    task.SavePath,
-					"warning": scanErr.Error(),
-				})
+		avEnabled := true
+		if av, err := e.storage.GetString("enable_av_scan"); err == nil && av == "false" {
+			avEnabled = false
+		}
+		if avEnabled {
+			if scanErr := e.scanner.ScanFile(ctx, task.SavePath); scanErr != nil {
+				e.logger.Warn("AV scan warning", "id", task.ID, "error", scanErr)
+				if e.ctx != nil {
+					runtime.EventsEmit(e.ctx, "download:av_warning", map[string]interface{}{
+						"id":      task.ID,
+						"path":    task.SavePath,
+						"warning": scanErr.Error(),
+					})
+				}
 			}
 		}
 
