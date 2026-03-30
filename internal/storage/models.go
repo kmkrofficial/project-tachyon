@@ -25,7 +25,6 @@ type DownloadTask struct {
 	Domain        string  `json:"domain"`     // e.g. "google.com" for concurrency limits
 	CreatedAt     string  `json:"created_at"`
 	UpdatedAt     string  `json:"updated_at"`
-	DeletedAt     int64   `gorm:"index;softDelete:milli" json:"-"`
 }
 
 // TableName specifies the table name for DownloadTask

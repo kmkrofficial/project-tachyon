@@ -145,9 +145,9 @@ func (s *Storage) GetActiveTasks() ([]DownloadTask, error) {
 	return tasks, err
 }
 
-// DeleteTask soft-deletes a task
+// DeleteTask permanently deletes a task
 func (s *Storage) DeleteTask(id string) error {
-	return s.DB.Delete(&DownloadTask{}, "id = ?", id).Error
+	return s.DB.Unscoped().Delete(&DownloadTask{}, "id = ?", id).Error
 }
 
 // UpdateTaskStatus updates just the status field
