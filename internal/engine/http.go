@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"mime"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -103,7 +104,7 @@ func (e *TachyonEngine) ProbeURL(urlStr string, headersStr string, cookiesStr st
 		return result, nil
 	}
 
-	// 2. Always fallback to GET+Range — many servers/CDNs block HEAD at the
+	// 2. Always fallback to GET+Range -- many servers/CDNs block HEAD at the
 	//    transport layer (connection reset) while serving GET just fine.
 	if err != nil {
 		e.logger.Info("HEAD failed, trying GET+Range fallback", "url", urlStr, "head_error", err)
@@ -111,19 +112,28 @@ func (e *TachyonEngine) ProbeURL(urlStr string, headersStr string, cookiesStr st
 		e.logger.Info("HEAD probe insufficient (size=0), falling back to GET+Range", "url", urlStr)
 	}
 	result, err = e.probeGETRange(ctx, urlStr, headersStr, cookiesStr)
-	if err == nil && result != nil {
+	if err == nil && result != nil && result.Size > 0 {
 		e.probes.Put(urlStr, result)
 		return result, nil
 	}
 
-	// 3. Final fallback: plain GET without Range header — some servers reject
+	// 3. Final fallback: plain GET without Range header -- some servers reject
 	//    the Range header entirely with a 400.
 	if err != nil {
 		e.logger.Info("GET+Range failed, trying plain GET fallback", "url", urlStr, "range_error", err)
+	} else {
+		e.logger.Info("GET+Range probe insufficient (size=0), trying plain GET", "url", urlStr)
 	}
 	result, err = e.probePlainGET(ctx, urlStr, headersStr, cookiesStr)
 	if err == nil && result != nil {
 		result.AcceptRanges = false // Server doesn't support ranges
+	}
+
+	// 4. If all probes returned size=0, try URL params (YouTube clen) as last resort
+	if result != nil && result.Size <= 0 {
+		result.Size = extractSizeFromURL(urlStr)
+	}
+	if result != nil {
 		e.probes.Put(urlStr, result)
 	}
 	return result, err
@@ -215,8 +225,11 @@ func (e *TachyonEngine) parseProbeResponse(resp *http.Response) *ProbeResult {
 
 	acceptRanges := resp.Header.Get("Accept-Ranges") == "bytes"
 
-	// Size determination
+	// Size determination (Go returns -1 when Content-Length is absent)
 	size := resp.ContentLength
+	if size < 0 {
+		size = 0
+	}
 
 	// If response is 206 Partial Content, parse total size from Content-Range
 	if resp.StatusCode == http.StatusPartialContent {
@@ -277,4 +290,19 @@ func friendlyHTTPError(status int) error {
 	default:
 		return fmt.Errorf("Server returned error %d", status)
 	}
+}
+
+// extractSizeFromURL extracts file size from URL query parameters.
+// YouTube videoplayback URLs contain the size as the 'clen' param.
+func extractSizeFromURL(urlStr string) int64 {
+	u, err := url.Parse(urlStr)
+	if err != nil {
+		return 0
+	}
+	if clen := u.Query().Get("clen"); clen != "" {
+		if n, err := strconv.ParseInt(clen, 10, 64); err == nil && n > 0 {
+			return n
+		}
+	}
+	return 0
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"project-tachyon/internal/filesystem"
@@ -13,6 +14,10 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+func parseInt64(s string) (int64, error) {
+	return strconv.ParseInt(s, 10, 64)
+}
+
 // GetHistory returns all download tasks
 func (e *TachyonEngine) GetHistory() ([]storage.Task, error) {
 	return e.storage.GetAllTasks()
@@ -21,6 +26,11 @@ func (e *TachyonEngine) GetHistory() ([]storage.Task, error) {
 // GetTask returns a specific download task
 func (e *TachyonEngine) GetTask(id string) (storage.Task, error) {
 	return e.storage.GetTask(id)
+}
+
+// GetTaskByURL returns the most recent task matching the given URL
+func (e *TachyonEngine) GetTaskByURL(url string) (storage.Task, error) {
+	return e.storage.GetTaskByURL(url)
 }
 
 // GetQueuedDownloads returns all downloads in the queue for UI display
@@ -106,6 +116,14 @@ func (e *TachyonEngine) StartDownload(urlStr string, destPath string, customFile
 		}
 	}
 
+	// Parse size hint from extension (e.g. YouTube contentLength)
+	var sizeHint int64
+	if sh, ok := options["size_hint"]; ok && sh != "" {
+		if v, err := parseInt64(sh); err == nil && v > 0 {
+			sizeHint = v
+		}
+	}
+
 	task := storage.DownloadTask{
 		ID:         downloadID,
 		URL:        urlStr,
@@ -113,6 +131,7 @@ func (e *TachyonEngine) StartDownload(urlStr string, destPath string, customFile
 		SavePath:   finalPath,
 		Status:     initialStatus,
 		Category:   category,
+		TotalSize:  sizeHint,
 		QueueOrder: e.queue.GetNextOrder(),
 		CreatedAt:  time.Now().Format(time.RFC3339),
 		UpdatedAt:  time.Now().Format(time.RFC3339),
@@ -277,12 +296,18 @@ func (e *TachyonEngine) PauseAllDownloads() {
 		e.PauseDownload(id)
 	}
 
-	// Also mark any pending tasks as paused in DB
+	// Also mark any pending tasks as paused in DB (single transaction)
 	tasks, _ := e.storage.GetAllTasks()
+	var toSave []storage.DownloadTask
 	for _, task := range tasks {
 		if task.Status == "pending" {
 			task.Status = "paused"
-			e.storage.SaveTask(task)
+			toSave = append(toSave, task)
+		}
+	}
+	if len(toSave) > 0 {
+		e.storage.SaveTasks(toSave)
+		for _, task := range toSave {
 			if e.ctx != nil {
 				runtime.EventsEmit(e.ctx, "download:paused", map[string]interface{}{
 					"id": task.ID,
@@ -424,6 +449,48 @@ func (e *TachyonEngine) DeleteDownload(id string, deleteFile bool) error {
 	return nil
 }
 
+// BulkDeleteDownloads removes multiple tasks and optionally their files in one operation
+func (e *TachyonEngine) BulkDeleteDownloads(ids []string, deleteFile bool) error {
+	// Pause all targets first
+	for _, id := range ids {
+		e.PauseDownload(id)
+	}
+
+	// Collect save paths if file deletion requested
+	if deleteFile {
+		for _, id := range ids {
+			task, err := e.storage.GetTask(id)
+			if err != nil {
+				continue
+			}
+			if task.SavePath != "" {
+				if err := os.Remove(task.SavePath); err != nil && !os.IsNotExist(err) {
+					e.logger.Warn("Failed to delete file", "path", task.SavePath, "error", err)
+				}
+			}
+		}
+	}
+
+	// Batch delete from storage
+	if err := e.storage.DeleteTasks(ids); err != nil {
+		return err
+	}
+
+	// Remove from queue
+	for _, id := range ids {
+		e.queue.Remove(id)
+	}
+
+	// Emit a single bulk event
+	if e.ctx != nil {
+		runtime.EventsEmit(e.ctx, "download:bulk-deleted", map[string]interface{}{
+			"ids": ids,
+		})
+	}
+
+	return nil
+}
+
 // CheckHistory checks if the URL has been downloaded before
 func (e *TachyonEngine) CheckHistory(urlStr string) (bool, error) {
 	task, err := e.storage.GetTaskByURL(urlStr)
@@ -473,11 +540,13 @@ func (e *TachyonEngine) ReorderDownload(id string, direction string) error {
 		return fmt.Errorf("could not reorder download %s", id)
 	}
 
-	// Update QueueOrder in database for all queued items
+	// Update QueueOrder in database for all queued items (single transaction)
 	items := e.queue.GetAll()
-	for _, item := range items {
-		e.storage.SaveTask(*item)
+	batch := make([]storage.DownloadTask, len(items))
+	for i, item := range items {
+		batch[i] = *item
 	}
+	e.storage.SaveTasks(batch)
 
 	// Emit event notification
 	if e.ctx != nil {

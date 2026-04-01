@@ -107,6 +107,12 @@ func SanitizeFilename(name string) string {
 		"/", "_",
 		"\\", "_",
 		":", "_",
+		"|", "_",
+		"<", "_",
+		">", "_",
+		"\"", "_",
+		"?", "_",
+		"*", "_",
 	)
 	cleaned = replacer.Replace(cleaned)
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -86,17 +87,45 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 			"id":       task.ID,
 			"status":   "probing",
 			"filename": task.Filename,
+			"url":      task.URL,
 		})
 	}
-	probe, err := e.ProbeURL(task.URL, task.Headers, task.Cookies)
-	if err != nil {
-		e.failTask(task, fmt.Sprintf("Probe failed: %v", err))
-		return
-	}
-	task.TotalSize = probe.Size
 
 	u, _ := url.Parse(task.URL)
 	host := u.Hostname()
+
+	// YouTube / googlevideo: skip probing entirely — the URL is signed and
+	// time-limited, multiple probe requests waste the token and trigger rate
+	// limiting.  Use size from clen param or the extension's size hint.
+	var probe *ProbeResult
+	if strings.HasSuffix(host, "googlevideo.com") {
+		size := task.TotalSize // pre-seeded from extension size_hint
+		if size <= 0 {
+			size = extractSizeFromURL(task.URL)
+		}
+		probe = &ProbeResult{
+			Size:         size,
+			AcceptRanges: false, // streaming single-thread
+			Status:       200,
+			Filename:     task.Filename,
+		}
+		e.logger.Info(fmt.Sprintf("YouTube direct download — skipping probe (size=%d)", size), "id", task.ID)
+	} else {
+		var err error
+		probe, err = e.ProbeURL(task.URL, task.Headers, task.Cookies)
+		if err != nil {
+			e.failTask(task, fmt.Sprintf("Probe failed: %v", err))
+			return
+		}
+		e.logger.Info(fmt.Sprintf("Probe result: size=%d ranges=%v status=%d", probe.Size, probe.AcceptRanges, probe.Status), "id", task.ID)
+		if probe.Size > 0 {
+			task.TotalSize = probe.Size
+		} else if task.TotalSize <= 0 {
+			task.TotalSize = extractSizeFromURL(task.URL)
+			e.logger.Info(fmt.Sprintf("Using URL param size fallback: %d", task.TotalSize), "id", task.ID)
+		}
+	}
+
 	if e.isHostSingleStream(host) {
 		probe.AcceptRanges = false
 	}
@@ -255,6 +284,7 @@ func (e *TachyonEngine) executeTask(task *storage.DownloadTask) {
 			"id":            task.ID,
 			"status":        "downloading",
 			"filename":      task.Filename,
+			"url":           task.URL,
 			"total":         task.TotalSize,
 			"accept_ranges": probe.AcceptRanges,
 			"category":      task.Category,
@@ -454,7 +484,25 @@ Loop:
 	}
 
 	// 7. Merge & Verify
-	if len(completedParts) == numParts {
+	if len(completedParts) >= numParts {
+		// Let remaining workers (stolen parts, retries) finish naturally so their
+		// part files are fully flushed.  Drain partDoneCh / errCh to prevent
+		// workers blocking on channel sends.
+		drainDone := make(chan struct{})
+		go func() {
+			for {
+				select {
+				case <-partDoneCh:
+				case <-errCh:
+				case <-drainDone:
+					return
+				}
+			}
+		}()
+		wg.Wait()
+		close(drainDone)
+		cancel()
+
 		task.Status = "merging"
 		if e.ctx != nil {
 			runtime.EventsEmit(e.ctx, "download:progress", map[string]interface{}{
@@ -497,14 +545,33 @@ Loop:
 			}
 		}
 
+		// Use actual downloaded bytes; fall back to TotalSize only for known-size downloads
+		actualDownloaded := atomic.LoadInt64(&downloadedBytes)
+		if actualDownloaded > 0 {
+			task.Downloaded = actualDownloaded
+			if task.TotalSize <= 0 {
+				task.TotalSize = actualDownloaded // Streaming: total = what we got
+			}
+		} else {
+			task.Downloaded = task.TotalSize
+		}
+
 		task.Status = "completed"
 		task.Progress = 100
-		task.Downloaded = task.TotalSize
-		e.storage.SaveTaskAtomic(task.ID, func(t *storage.DownloadTask) {
-			t.Status = "completed"
-			t.Progress = 100
-			t.Downloaded = task.TotalSize
-		})
+		for attempt := 0; attempt < 3; attempt++ {
+			if err := e.storage.SaveTaskAtomic(task.ID, func(t *storage.DownloadTask) {
+				t.Status = "completed"
+				t.Progress = 100
+				t.Downloaded = task.Downloaded
+				t.TotalSize = task.TotalSize
+			}); err == nil {
+				break
+			} else if attempt < 2 {
+				time.Sleep(time.Duration(100*(attempt+1)) * time.Millisecond)
+			} else {
+				e.logger.Error("Failed to persist completion status", "id", task.ID, "error", err)
+			}
+		}
 		e.logger.Info("Download Completed", "id", task.ID)
 
 		avEnabled := true

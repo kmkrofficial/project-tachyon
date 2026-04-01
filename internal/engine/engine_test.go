@@ -17,9 +17,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/glebarez/sqlite"
-	"gorm.io/gorm"
 )
 
 // --- Helper Functions ---
@@ -32,15 +29,10 @@ func createTempDB(t *testing.T) *storage.Storage {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	dbPath := filepath.Join(dir, "test.db")
-	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
+	s, err := storage.NewStorageWithPath(dbPath)
 	if err != nil {
 		t.Fatalf("Failed to open test db: %v", err)
 	}
-	// Migrate all tables the engine may touch
-	if err := db.AutoMigrate(&storage.DownloadTask{}, &storage.DownloadLocation{}, &storage.DailyStat{}, &storage.AppSetting{}, &storage.SpeedTestHistory{}); err != nil {
-		t.Fatalf("Migration failed: %v", err)
-	}
-	s := &storage.Storage{DB: db}
 	t.Cleanup(func() {
 		s.Close()
 		os.RemoveAll(dir)
@@ -435,7 +427,7 @@ func TestRealWorldDownload(t *testing.T) {
 		t.Skip("Skipping long running test in short mode")
 	}
 
-	url := "https://ash-speed.hetzner.com/1GB.bin"
+	url := "https://iso.pop-os.org/24.04/amd64/nvidia/23/pop-os_24.04_amd64_nvidia_23.iso"
 
 	tmpDir, _ := os.MkdirTemp("", "tachyon_real_test")
 	defer os.RemoveAll(tmpDir)
@@ -445,25 +437,22 @@ func TestRealWorldDownload(t *testing.T) {
 	engine := NewEngine(logger, store)
 	engine.SetMaxConcurrent(16)
 
-	// Use non-Wails context
-	// engine.SetContext(context.TODO())
-
 	t.Logf("Starting real download from %s", url)
-	id, err := engine.StartDownload(url, tmpDir, "1GB.bin", nil)
+	id, err := engine.StartDownload(url, tmpDir, "pop-os.iso", nil)
 	if err != nil {
 		t.Fatalf("Failed to start: %v", err)
 	}
 
-	// Wait loop with progress logging
-	timeout := time.After(60 * time.Second)
+	// Allow 10 minutes for a ~3GB ISO
+	timeout := time.After(10 * time.Minute)
 Loop:
 	for {
 		select {
 		case <-timeout:
 			t.Fatal("Real download timed out")
-		case <-time.After(1 * time.Second):
+		case <-time.After(5 * time.Second):
 			task, _ := store.GetTask(id)
-			t.Logf("Progress: %.2f%% (%s / %s)", task.Progress, humanizeBytes(task.Downloaded), humanizeBytes(task.TotalSize))
+			t.Logf("Progress: %.2f%% (%s / %s) Speed: %s/s", task.Progress, humanizeBytes(task.Downloaded), humanizeBytes(task.TotalSize), humanizeBytes(int64(task.Speed)))
 
 			if task.Status == "completed" {
 				break Loop
@@ -475,14 +464,15 @@ Loop:
 	}
 
 	// Verify file exists and has size
-	fi, err := os.Stat(filepath.Join(tmpDir, "1GB.bin"))
+	task, _ := store.GetTask(id)
+	fi, err := os.Stat(task.SavePath)
 	if err != nil {
-		t.Fatal("File not found")
+		t.Fatalf("File not found at %s", task.SavePath)
 	}
 	if fi.Size() == 0 {
 		t.Fatal("File is empty")
 	}
-	t.Logf("Successfully downloaded %s (%d bytes)", fi.Name(), fi.Size())
+	t.Logf("Successfully downloaded %s (%s)", fi.Name(), humanizeBytes(fi.Size()))
 }
 
 func humanizeBytes(s int64) string {

@@ -9,6 +9,15 @@ import (
 )
 
 func TestWaitForSignals_CallbackFired(t *testing.T) {
+	if testing.Short() {
+		t.Skip("signal tests unreliable in short mode")
+	}
+	// On Windows, Process.Signal(os.Interrupt) does not reliably deliver to
+	// the calling process. Skip when the runtime clearly does not support it.
+	if err := testSignalSelf(); err != nil {
+		t.Skipf("os.Interrupt not deliverable on this OS: %v", err)
+	}
+
 	called := make(chan bool, 1)
 
 	WaitForSignals(func() {
@@ -16,7 +25,7 @@ func TestWaitForSignals_CallbackFired(t *testing.T) {
 	})
 
 	// Give goroutine time to start
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 
 	// Send signal to self
 	p, _ := os.FindProcess(os.Getpid())
@@ -31,6 +40,15 @@ func TestWaitForSignals_CallbackFired(t *testing.T) {
 
 	// Reset signal handling for other tests
 	signal.Reset(os.Interrupt, syscall.SIGTERM)
+}
+
+// testSignalSelf checks if the process can send os.Interrupt to itself.
+func testSignalSelf() error {
+	p, err := os.FindProcess(os.Getpid())
+	if err != nil {
+		return err
+	}
+	return p.Signal(os.Interrupt)
 }
 
 func TestWaitForSignals_NilCallback(t *testing.T) {

@@ -167,9 +167,11 @@ function App() {
                 break;
         }
 
-        for (const d of targets) {
-            try { await AppBinding.DeleteDownload(d.id, deleteFile); } catch {}
-        }
+        if (targets.length === 0) return;
+
+        try {
+            await AppBinding.BulkDeleteDownloads(targets.map(d => d.id), deleteFile);
+        } catch {}
         addToast('success', 'Cleared', `Removed ${targets.length} download${targets.length !== 1 ? 's' : ''}.`);
     }, [downloads, activeTab, addToast]);
 

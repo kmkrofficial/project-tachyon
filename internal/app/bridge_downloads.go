@@ -173,6 +173,16 @@ func (a *App) DeleteDownload(id string, deleteFile bool) error {
 	return nil
 }
 
+// BulkDeleteDownloads deletes multiple download tasks and optionally their files
+func (a *App) BulkDeleteDownloads(ids []string, deleteFile bool) error {
+	a.logger.Info("frontend_request", "method", "BulkDeleteDownloads", "count", len(ids), "deleteFile", deleteFile)
+	if err := a.engine.BulkDeleteDownloads(ids, deleteFile); err != nil {
+		a.logger.Error("Failed to bulk delete downloads", "error", err)
+		return err
+	}
+	return nil
+}
+
 // ReorderDownload moves a download in the queue
 // direction: "first", "prev", "next", "last"
 func (a *App) ReorderDownload(id string, direction string) error {

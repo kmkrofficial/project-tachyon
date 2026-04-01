@@ -80,6 +80,13 @@ func (e *TachyonEngine) processDownloadPart(ctx context.Context, taskID string, 
 	if err := e.breaker.Allow(host); err != nil {
 		if part.Attempts < 3 {
 			part.Attempts++
+			// Exponential backoff before circuit breaker retry
+			backoff := time.Duration(1<<(part.Attempts-1)) * time.Second
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(backoff):
+			}
 			select {
 			case retryCh <- part:
 			default:
@@ -93,6 +100,13 @@ func (e *TachyonEngine) processDownloadPart(ctx context.Context, taskID string, 
 
 	startedAt := time.Now()
 	err := e.downloadPart(ctx, taskID, urlStr, tempDir, part, BufferSize, headersStr, cookiesStr, strictRanges, downloadedBytes, inflight)
+
+	// Context cancellation (pause/stop) is not a server failure —
+	// don't poison the circuit breaker or congestion controller for the host.
+	if ctx.Err() != nil {
+		return
+	}
+
 	e.congestion.RecordOutcome(host, time.Since(startedAt), err)
 
 	if err != nil {
@@ -119,6 +133,15 @@ func (e *TachyonEngine) processDownloadPart(ctx context.Context, taskID string, 
 		if part.Attempts < 3 {
 			part.Attempts++
 			e.logger.Warn("Retrying part", "id", part.ID, "attempt", part.Attempts)
+
+			// Exponential backoff: 1s, 2s, 4s
+			backoff := time.Duration(1<<(part.Attempts-1)) * time.Second
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(backoff):
+			}
+
 			select {
 			case retryCh <- part:
 			default:
@@ -177,6 +200,8 @@ func (e *TachyonEngine) downloadPart(ctx context.Context, taskID string, urlStr 
 	}
 	defer resp.Body.Close()
 
+	e.logger.Info(fmt.Sprintf("Download part HTTP %d (content-length=%d)", resp.StatusCode, resp.ContentLength), "id", taskID, "part", part.ID)
+
 	if strictRanges && part.EndOffset != StreamEndOffset && resp.StatusCode == http.StatusOK {
 		return ErrRangeIgnored
 	}
@@ -195,10 +220,6 @@ func (e *TachyonEngine) downloadPart(ctx context.Context, taskID string, urlStr 
 	}
 	defer pw.Close()
 
-	bufPtr := e.bufferPool.Get().(*[]byte)
-	defer e.bufferPool.Put(bufPtr)
-	buf := *bufPtr
-
 	totalBytesToRead := part.EndOffset - part.StartOffset + 1
 	if part.EndOffset == StreamEndOffset {
 		totalBytesToRead = StreamEndOffset
@@ -210,23 +231,40 @@ func (e *TachyonEngine) downloadPart(ctx context.Context, taskID string, urlStr 
 	lastSpeedCheck := time.Now()
 	lastSpeedBytes := int64(0)
 
-	// Deadline-based stall detection using a timer
-	stallTimer := time.NewTimer(maxStallTimeout)
-	defer stallTimer.Stop()
-
+	// Single persistent reader goroutine — reads and sends results over a
+	// channel. This avoids spawning a goroutine per read while keeping
+	// stall detection working via the select loop below.
 	type readResult struct {
-		n   int
-		err error
+		data []byte
+		err  error
 	}
 	readCh := make(chan readResult, 1)
 
+	go func() {
+		defer close(readCh)
+		buf := make([]byte, chunkSize)
+		for {
+			n, readErr := resp.Body.Read(buf)
+			if n > 0 {
+				// Copy to owned slice — the consumer may still be processing
+				// previous data when we start the next read.
+				chunk := make([]byte, n)
+				copy(chunk, buf[:n])
+				readCh <- readResult{chunk, readErr}
+			} else if readErr != nil {
+				readCh <- readResult{nil, readErr}
+			}
+			if readErr != nil {
+				return
+			}
+		}
+	}()
+
+	stallTimer := time.NewTimer(maxStallTimeout)
+	defer stallTimer.Stop()
+
 	for bytesReadTotal < totalBytesToRead {
 		stall := adaptiveStallTimeout(recentSpeed, chunkSize)
-
-		go func() {
-			n, readErr := resp.Body.Read(buf)
-			readCh <- readResult{n, readErr}
-		}()
 
 		if !stallTimer.Stop() {
 			select {
@@ -237,39 +275,45 @@ func (e *TachyonEngine) downloadPart(ctx context.Context, taskID string, urlStr 
 		stallTimer.Reset(stall)
 
 		var rr readResult
+		var ok bool
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-stallTimer.C:
 			return ErrStallTimeout
-		case rr = <-readCh:
+		case rr, ok = <-readCh:
+			if !ok {
+				// Reader goroutine exited without sending EOF — treat as unexpected close
+				return fmt.Errorf("reader closed unexpectedly")
+			}
 		}
 
-		if rr.n > 0 {
-			if err := e.bandwidthManager.Wait(ctx, taskID, rr.n); err != nil {
+		if len(rr.data) > 0 {
+			if err := e.bandwidthManager.Wait(ctx, taskID, len(rr.data)); err != nil {
 				return err
 			}
 
 			// Check if this part was stolen (EndOffset reduced by work-stealing).
 			// Only write up to the adjusted boundary to avoid overlap.
-			writeN := rr.n
+			writeData := rr.data
 			if adj := inflight.AdjustedEnd(part.ID); adj >= 0 {
 				newLimit := adj - part.StartOffset + 1
-				if bytesReadTotal+int64(writeN) > newLimit {
-					writeN = int(newLimit - bytesReadTotal)
-					if writeN <= 0 {
+				if bytesReadTotal+int64(len(writeData)) > newLimit {
+					allowed := int(newLimit - bytesReadTotal)
+					if allowed <= 0 {
 						break // Nothing more to write for this part
 					}
+					writeData = writeData[:allowed]
 				}
 				totalBytesToRead = newLimit
 			}
 
-			if writeErr := pw.Write(buf[:writeN]); writeErr != nil {
+			if writeErr := pw.Write(writeData); writeErr != nil {
 				return writeErr
 			}
-			bytesReadTotal += int64(writeN)
+			bytesReadTotal += int64(len(writeData))
 
-			lastSpeedBytes += int64(writeN)
+			lastSpeedBytes += int64(len(writeData))
 			elapsed := time.Since(lastSpeedCheck).Seconds()
 			if elapsed >= 1.0 {
 				recentSpeed = float64(lastSpeedBytes) / elapsed
@@ -290,7 +334,7 @@ func (e *TachyonEngine) downloadPart(ctx context.Context, taskID string, urlStr 
 
 // failTask marks a task as failed
 func (e *TachyonEngine) failTask(task *storage.DownloadTask, reason string) {
-	e.logger.Error("Task Failed", "id", task.ID, "reason", reason)
+	e.logger.Error(fmt.Sprintf("Task Failed: %s", reason), "id", task.ID)
 	task.Status = "error"
 	e.storage.SaveTaskAtomic(task.ID, func(t *storage.DownloadTask) {
 		t.Status = "error"

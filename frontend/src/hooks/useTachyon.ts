@@ -111,6 +111,18 @@ export function useTachyon() {
             });
         });
 
+        // Listen for Bulk Deleted
+        const cleanupBulkDeleted = EventsOn("download:bulk-deleted", (data: any) => {
+            if (!data?.ids?.length) return;
+            setDownloads((prev) => {
+                const next = { ...prev };
+                for (const id of data.ids) {
+                    delete next[id];
+                }
+                return next;
+            });
+        });
+
         // Listen for Errors
         const cleanupFailed = EventsOn("download:error", (data: any) => {
             setDownloads((prev) => ({
@@ -162,6 +174,7 @@ export function useTachyon() {
             EventsOff("download:completed");
             EventsOff("download:paused");
             EventsOff("download:deleted");
+            EventsOff("download:bulk-deleted");
             EventsOff("download:error");
             EventsOff("download:stopped");
             EventsOff("download:timeout");

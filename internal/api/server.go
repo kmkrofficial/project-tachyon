@@ -9,6 +9,7 @@ import (
 	"project-tachyon/internal/config"
 	"project-tachyon/internal/engine"
 	"project-tachyon/internal/security"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -69,11 +70,6 @@ func (s *ControlServer) concurrencyLimitMiddleware(next http.Handler) http.Handl
 }
 
 func (s *ControlServer) Start(port int) {
-	// 1. Feature Flag Check at Startup
-	if !s.cfg.GetEnableAI() {
-		return // Do not start if disabled
-	}
-
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
 	log.Printf("Control Server listening on %s", addr)
 
@@ -94,14 +90,19 @@ func (s *ControlServer) Start(port int) {
 func (s *ControlServer) setupRoutes() {
 	s.router.Use(middleware.Logger)
 	s.router.Use(middleware.Recoverer)
-
-	// Security Middleware Chain
 	s.router.Use(s.securityMiddleware)
 	s.router.Use(s.rateLimitMiddleware)
 	s.router.Use(s.concurrencyLimitMiddleware)
 
+	// Health check — exempted from auth inside securityMiddleware
+	s.router.Get("/v1/health", s.handleHealth)
+	s.router.Options("/v1/health", s.handleHealth)
+
 	s.router.Post("/v1/queue", s.handleQueueDownload)
 	s.router.Post("/v1/browser/trigger", s.handleBrowserTrigger)
+	s.router.Post("/v1/browser/check", s.handleBrowserCheck)
+	s.router.Post("/v1/grab/download", s.handleGrabDownload)
+	s.router.Post("/v1/grab/resolve", s.handleGrabResolve)
 	s.router.Get("/v1/tasks/{id}", s.handleGetTask)
 	s.router.Post("/v1/tasks/{id}/control", s.handleTaskControl)
 	s.router.Get("/v1/status", s.handleGetStatus)
@@ -109,6 +110,14 @@ func (s *ControlServer) setupRoutes() {
 
 func (s *ControlServer) securityMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Browser extension endpoints — skip AI feature flag and token auth
+		path := r.URL.Path
+		if path == "/v1/health" || strings.HasPrefix(path, "/v1/browser/") ||
+			strings.HasPrefix(path, "/v1/grab/") {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		sourceIP, _, _ := net.SplitHostPort(r.RemoteAddr)
 		userAgent := r.UserAgent()
 		action := fmt.Sprintf("%s %s", r.Method, r.URL.Path)
@@ -230,6 +239,23 @@ func (s *ControlServer) handleTaskControl(w http.ResponseWriter, r *http.Request
 
 func (s *ControlServer) handleGetStatus(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"status": "running"}`))
+}
+
+func (s *ControlServer) handleHealth(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"status":  "ok",
+		"version": "1.0.0",
+	})
 }
 
 // rateLimitMiddleware enforces a sliding-window rate limit per source IP.

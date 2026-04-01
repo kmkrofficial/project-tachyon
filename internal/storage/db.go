@@ -49,6 +49,17 @@ func NewStorageWithPath(dbPath string) (*Storage, error) {
 	db.Exec("PRAGMA journal_mode=WAL;")
 	db.Exec("PRAGMA synchronous=NORMAL;")
 	db.Exec("PRAGMA cache_size=10000;")
+	db.Exec("PRAGMA busy_timeout=5000;")
+
+	// SQLite only supports one writer at a time.  Constraining the pool to a
+	// single connection serializes all access through Go's sql.DB mutex which
+	// is far cheaper than hitting SQLite's internal busy-retry loop.
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sql.DB: %w", err)
+	}
+	sqlDB.SetMaxOpenConns(1)
+	sqlDB.SetMaxIdleConns(1)
 
 	// Auto-migrate tables
 	err = db.AutoMigrate(
@@ -85,6 +96,21 @@ func (s *Storage) Checkpoint() error {
 func (s *Storage) SaveTask(task DownloadTask) error {
 	task.UpdatedAt = time.Now().Format(time.RFC3339)
 	return s.DB.Save(&task).Error
+}
+
+// SaveTasks persists multiple tasks inside a single transaction to avoid
+// repeated lock acquisition on SQLite's single-writer path.
+func (s *Storage) SaveTasks(tasks []DownloadTask) error {
+	now := time.Now().Format(time.RFC3339)
+	return s.DB.Transaction(func(tx *gorm.DB) error {
+		for i := range tasks {
+			tasks[i].UpdatedAt = now
+			if err := tx.Save(&tasks[i]).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // SaveTaskAtomic applies multiple field updates to a task inside a single
@@ -148,6 +174,11 @@ func (s *Storage) GetActiveTasks() ([]DownloadTask, error) {
 // DeleteTask permanently deletes a task
 func (s *Storage) DeleteTask(id string) error {
 	return s.DB.Unscoped().Delete(&DownloadTask{}, "id = ?", id).Error
+}
+
+// DeleteTasks permanently deletes multiple tasks by IDs
+func (s *Storage) DeleteTasks(ids []string) error {
+	return s.DB.Unscoped().Delete(&DownloadTask{}, "id IN ?", ids).Error
 }
 
 // UpdateTaskStatus updates just the status field

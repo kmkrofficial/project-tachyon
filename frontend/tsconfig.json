@@ -22,7 +22,7 @@
   },
   "include": [
     "src",
-    "wailsjs"
+    "wailsjs/**/*.d.ts"
   ],
   "references": [
     {
